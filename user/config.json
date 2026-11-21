@@ -9,6 +9,7 @@
     "theme": true,
     "i18n": true,
     "metrics": true,
+    "promptSuggestions": false,
     "deadlockHealer": true,
     "zoomShortcuts": true,
     "cdpAutoRelaunch": true,

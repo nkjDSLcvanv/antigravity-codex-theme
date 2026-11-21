@@ -101,7 +101,14 @@ export function trimDaemonLogsIfNeeded(runOnce = false) {
   trimLogFileIfOversized('/tmp/antigravity-codex-daemon.err');
 }
 
-export function createCdpManager({ bundleCtrl, metricsReader, hasSqlite, runOnce = false, safeMode = false }) {
+export function createCdpManager({
+  bundleCtrl,
+  metricsReader,
+  promptSuggester = null,
+  hasSqlite,
+  runOnce = false,
+  safeMode = false
+}) {
   const attachedTargets = new Map();
   const fallbackBackoffUntil = new Map();
   const skippedNonHostTargets = new Map();
@@ -411,6 +418,7 @@ export function createCdpManager({ bundleCtrl, metricsReader, hasSqlite, runOnce
           if (!isSwarmIframe) {
             await send('Runtime.addBinding', { name: '__agRequestMetrics' });
             await send('Runtime.addBinding', { name: '__agSyncHostThemeMode' });
+            await send('Runtime.addBinding', { name: '__agRequestPromptSuggestion' });
           }
           await updateNewDocScript();
           const ok = await inject();
@@ -465,6 +473,47 @@ export function createCdpManager({ bundleCtrl, metricsReader, hasSqlite, runOnce
                   relayThemeModeToChildIframes(target.id, endpoint.channel, nextMode);
                 }
               }
+              return;
+            }
+            if (msg.method === 'Runtime.bindingCalled' && msg.params?.name === '__agRequestPromptSuggestion') {
+              const { activeConfig } = bundleCtrl.getState();
+              if (
+                isSwarmIframe ||
+                !hostConfirmed ||
+                !promptSuggester ||
+                !activeConfig.enabled ||
+                !activeConfig.modules.promptSuggestions
+              ) {
+                return;
+              }
+              let req = {};
+              try {
+                req = msg.params.payload ? JSON.parse(String(msg.params.payload)) : {};
+              } catch {}
+              const reqId = String(req?.reqId || '');
+              const fingerprint = String(req?.fingerprint || '').trim();
+              const lastUser = String(req?.lastUser || '').trim().slice(-600);
+              const lastAssistant = String(req?.lastAssistant || '').trim().slice(-1400);
+              void (async () => {
+                let out;
+                try {
+                  const suggestion = await promptSuggester.suggest({ fingerprint, lastUser, lastAssistant });
+                  out = { ok: true, suggestion };
+                } catch (err) {
+                  out = { ok: false, suggestion: '', error: err?.message || String(err || 'prompt suggestion failed') };
+                }
+                if (ws.readyState === WebSocket.OPEN) {
+                  const payloadJson = JSON.stringify(out)
+                    .replace(/\u2028/g, '\\u2028')
+                    .replace(/\u2029/g, '\\u2029');
+                  try {
+                    await send('Runtime.evaluate', {
+                      expression: `if (typeof window.__ag_on_prompt_suggestion === 'function') { window.__ag_on_prompt_suggestion(${JSON.stringify(reqId)}, ${payloadJson}); }`,
+                      returnByValue: false
+                    });
+                  } catch {}
+                }
+              })();
               return;
             }
             if (!initialAttachDone) return;
@@ -528,6 +577,9 @@ export function createCdpManager({ bundleCtrl, metricsReader, hasSqlite, runOnce
     try {
       if (syncTickCount % 24 === 1) trimDaemonLogsIfNeeded(runOnce);
       const bundleChanged = bundleCtrl.rebuildBundleIfNeeded();
+      if (promptSuggester && typeof promptSuggester.syncState === 'function') {
+        promptSuggester.syncState();
+      }
       const { activeConfig } = bundleCtrl.getState();
       if (!activeConfig.enabled) {
         targetThemeModes.clear();
@@ -671,6 +723,9 @@ export function createCdpManager({ bundleCtrl, metricsReader, hasSqlite, runOnce
   }
 
   function closeAll() {
+    if (promptSuggester && typeof promptSuggester.stop === 'function') {
+      promptSuggester.stop();
+    }
     for (const [, entry] of attachedTargets.entries()) {
       try {
         entry.ws.close();
