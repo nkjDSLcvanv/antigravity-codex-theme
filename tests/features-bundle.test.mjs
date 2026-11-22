@@ -24,12 +24,14 @@ test('parseFeatureSelection resolves --only and --without flags cleanly', () => 
     theme: false,
     i18n: true,
     metrics: true,
+    quota: false,
     fixes: false
   });
   assert.deepEqual(onlyI18n.modulesPatch, {
     theme: false,
     i18n: true,
     metrics: true,
+    quota: false,
     deadlockHealer: false,
     zoomShortcuts: false
   });
@@ -40,6 +42,7 @@ test('parseFeatureSelection resolves --only and --without flags cleanly', () => 
     theme: true,
     i18n: true,
     metrics: false,
+    quota: true,
     fixes: false
   });
 
@@ -78,7 +81,12 @@ test('Assembled partial runtime bundles execute without ReferenceError when opti
     {
       name: 'metrics-only',
       parts: ['00-head.js', '30-antigravity-probe.js', '40-status-machine.js', '50-telemetry-ui.js', '90-tail.js'],
-      modules: { theme: false, i18n: false, metrics: true, deadlockHealer: false, zoomShortcuts: false }
+      modules: { theme: false, i18n: false, metrics: true, quota: false, deadlockHealer: false, zoomShortcuts: false }
+    },
+    {
+      name: 'quota-only',
+      parts: ['00-head.js', '55-quota-card.js', '90-tail.js'],
+      modules: { theme: false, i18n: false, metrics: false, quota: true, deadlockHealer: false, zoomShortcuts: false }
     }
   ];
 

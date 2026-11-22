@@ -9,6 +9,7 @@
     "theme": true,
     "i18n": true,
     "metrics": true,
+    "quota": true,
     "sshRemote": false,
     "deadlockHealer": true,
     "zoomShortcuts": true,

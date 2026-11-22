@@ -41,7 +41,7 @@ https://github.com/user-attachments/assets/e42ae3d6-c261-442c-bc6d-3c14ff830664
 
 - 提供浅色 (`codex-pure-white`) 与深色 (`codex-dark`) 两套配色，无外部字体依赖，随 IDE 明暗外观自动切换。
 - 底部工具栏实时指示会话状态与用量摘要，支持展开两级明细面板；每轮回复末尾附带 Token 统计，悬停约 `80ms` 显示详情拆解卡，并同步支持右侧旁路提问（Side Question）与 **SSH Remote 远端会话**（[查看配置](#ssh-remote-远端会话统计)）。
-- 内置 `1,900+` 条中文界面词条；4 个核心模块相互独立，可通过 `--only` 按需安装。
+- 内置 `1,900+` 条中文界面词条；5 个核心模块相互独立，可通过 `--only` 按需安装。
 
 ![一级概览、二级详情、上下文预警及每轮对话尾部统计](assets/telemetry-bento-panels.png)
 
@@ -74,7 +74,7 @@ node --disable-warning=ExperimentalWarning install.mjs doctor
 
 ### 按需安装
 
-支持通过 `--only` 从 `theme`、`i18n`、`metrics`、`fixes` 四个独立模块中按需组合：
+支持通过 `--only` 从 `theme`、`i18n`、`metrics`、`quota`、`fixes` 五个独立模块中按需组合：
 
 ```bash
 # 示例：仅启用中文界面与实时统计，保留 Antigravity 原生配色
@@ -89,6 +89,7 @@ node install.mjs install --only i18n,metrics
 | `theme` | Codex 浅色 (`codex-pure-white`) 与深色 (`codex-dark`) 昼夜主题 |
 | `i18n` | 中文界面本地化（`1,900+` 条词条，`WeakMap` 原地更新） |
 | `metrics` | 实时会话状态指示、一/二级用量统计面板与每轮对话尾部统计（含旁路提问面板及可选 SSH Remote 远端只读统计） |
+| `quota` | 侧栏底部实时模型配额卡片（展示当前模型池 `5h` / `每周` 双限额进度条、重置倒计时与悬停明细浮层） |
 | `fixes` | 设置弹窗路由死锁修复与 `Cmd/Ctrl + -/=/0` 界面缩放快捷键 |
 
 **1. 跳过 `assets/` 与 `tests/`，仅拉取运行核心文件（全平台通用）：**
@@ -295,7 +296,8 @@ antigravity-codex-theme/
 - Light (`codex-pure-white`) and dark (`codex-dark`) themes with zero external font dependencies and automatic light/dark switching.
 - A live bottom status bar tracking four session states (ready, running, waiting or retrying, error) via React Fiber probes, Language Server logs, and SQLite telemetry, paired with two-level usage panels and per-turn token stats with an `80ms` hover breakdown card across main conversations, Side Question panes, and opt-in SSH Remote sessions (`modules.sshRemote` + `sshHosts`, read-only remote Python extraction with zero local `.db` copy).
 - Chinese UI localization (`1,900+` entries) applied in place through a `WeakMap` observer, customizable via `user/i18n.override.json`.
-- Selective module installation via `--only` (`theme`, `i18n`, `metrics`, `fixes`), Git sparse checkout, and `--minimal` pruning.
+- Selective module installation via `--only` (`theme`, `i18n`, `metrics`, `quota`, `fixes`), Git sparse checkout, and `--minimal` pruning.
+- Sidebar dual-window model quota card (`quota`) displaying live `5h` and `Weekly` remaining bars, reset countdowns, and a hover pool breakdown tooltip without opening Settings.
 - Antigravity `2.33.0+` / `2.34.0+` support with a single-icon `--remote-debugging-port=0` cold-start relay (`cdpAutoRelaunch`) and `node install.mjs relaunch` with active-WAL protection. End-to-end installation and uninstall are verified across macOS, Windows, and Linux desktops (Antigravity `2.31.0`, `2.32.1`, `2.33.0`, and `2.34.0`; requires Node.js `>= 22.13.0`), alongside Ubuntu CI syntax checks and unit tests.
 
 Early research drew inspiration from [Anarcadia/chuanban-antigravity-theme-patch](https://github.com/Anarcadia/chuanban-antigravity-theme-patch) (MIT) for CDP runtime injection, `WeakMap` localization, SQLite telemetry, and `2.33.0` opt-in launch handling. This repository rebuilds the architecture into modular components and adds the Codex light/dark themes, four-state session monitor, two-level usage panels, per-turn hover cards, and selective installs under the [MIT License](LICENSE).

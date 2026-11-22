@@ -83,6 +83,20 @@ export const FEATURE_GROUPS = Object.freeze({
     ],
     aliases: ['metrics', 'status', 'telemetry', 'stats', 'panel', 'metricscapsule']
   },
+  quota: {
+    id: 'quota',
+    label: '侧栏模型配额卡片（5h / 每周双限额实时看板）',
+    configKeys: ['quota'],
+    sparsePaths: [
+      '/core/styles/35-quota-card.css',
+      '/core/runtime/55-quota-card.js'
+    ],
+    coreRelPaths: [
+      'styles/35-quota-card.css',
+      'runtime/55-quota-card.js'
+    ],
+    aliases: ['quota', 'quotacard', 'modelquota', 'limit']
+  },
   fixes: {
     id: 'fixes',
     label: '设置死锁修复与 Cmd/Ctrl + -/=/0 界面缩放快捷键',
@@ -110,7 +124,7 @@ function parseFeatureTokenList(raw) {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   if (tokens.length === 0) {
-    throw new Error('Empty feature list. Expected one or more of: theme, i18n, metrics, fixes, all');
+    throw new Error('Empty feature list. Expected one or more of: theme, i18n, metrics, quota, fixes, all');
   }
   const ids = [];
   for (const tok of tokens) {
@@ -119,7 +133,7 @@ function parseFeatureTokenList(raw) {
     }
     const resolved = ALIAS_TO_FEATURE.get(tok);
     if (!resolved) {
-      throw new Error(`Unknown feature "${tok}". Valid options: theme, i18n, metrics, fixes, all`);
+      throw new Error(`Unknown feature "${tok}". Valid options: theme, i18n, metrics, quota, fixes, all`);
     }
     if (!ids.includes(resolved)) ids.push(resolved);
   }
@@ -133,6 +147,7 @@ export function parseFeatureSelection({ onlyArg = null, withoutArg = null } = {}
     theme: true,
     i18n: true,
     metrics: true,
+    quota: true,
     fixes: true
   };
 
@@ -163,7 +178,7 @@ export function parseFeatureSelection({ onlyArg = null, withoutArg = null } = {}
   };
 }
 
-export function getSparseCheckoutPaths(selected = { theme: true, i18n: true, metrics: true, fixes: true }) {
+export function getSparseCheckoutPaths(selected = { theme: true, i18n: true, metrics: true, quota: true, fixes: true }) {
   const out = [...BASE_SPARSE_PATHS];
   for (const [id, meta] of Object.entries(FEATURE_GROUPS)) {
     if (selected[id]) {

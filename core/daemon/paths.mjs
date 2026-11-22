@@ -231,6 +231,7 @@ export function createBundleController({ safeMode = false, cliChannel = null, ha
         theme: true,
         i18n: true,
         metrics: true,
+        quota: true,
         sshRemote: false,
         deadlockHealer: true,
         zoomShortcuts: true,
@@ -249,6 +250,7 @@ export function createBundleController({ safeMode = false, cliChannel = null, ha
     const hasMetricsFiles =
       fs.existsSync(path.join(RUNTIME_DIR, '50-telemetry-ui.js')) &&
       fs.existsSync(path.join(CORE_DIR, 'daemon', 'sqlite-metrics.mjs'));
+    const hasQuotaFiles = fs.existsSync(path.join(RUNTIME_DIR, '55-quota-card.js'));
     const hasGuardsFile = fs.existsSync(path.join(RUNTIME_DIR, '10-guards.js'));
     if (!hasThemeFiles) modules.theme = false;
     if (!hasI18nFiles) modules.i18n = false;
@@ -256,6 +258,7 @@ export function createBundleController({ safeMode = false, cliChannel = null, ha
       modules.metrics = false;
       modules.sshRemote = false;
     }
+    if (!hasQuotaFiles) modules.quota = false;
     if (!hasGuardsFile) {
       modules.deadlockHealer = false;
       modules.zoomShortcuts = false;
@@ -303,6 +306,7 @@ export function createBundleController({ safeMode = false, cliChannel = null, ha
     const activeStyleFiles = styleFiles.filter((filePath) => {
       const base = path.basename(filePath);
       if (base === '30-telemetry.css') return Boolean(modules.metrics);
+      if (base === '35-quota-card.css') return Boolean(modules.quota);
       return modules.theme !== false;
     });
     const baseCss = activeStyleFiles.map((f) => readTextSafe(f, '')).join('\n\n');
