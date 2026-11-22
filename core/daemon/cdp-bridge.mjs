@@ -427,7 +427,7 @@ export function createCdpManager({ bundleCtrl, metricsReader, hasSqlite, runOnce
 
           const isHost = await verifyHostTarget();
           if (!isHost) {
-            skippedNonHostTargets.set(target.id, { origin: getTargetOriginKey(currentTargetUrl) });
+            skippedNonHostTargets.set(target.id, { origin: getTargetOriginKey(currentTargetUrl), atMs: Date.now() });
             try {
               ws.close();
             } catch {}
@@ -619,7 +619,12 @@ export function createCdpManager({ bundleCtrl, metricsReader, hasSqlite, runOnce
           seenRawTargetIds.add(t.id);
           targetMetaMap.set(t.id, { type: t.type, parentId: t.parentId || null, channel: endpoint.channel });
           const skipped = skippedNonHostTargets.get(t.id);
-          if (skipped && (!sharedIsAllowedOrigin(t.url, activeConfig.allowedOrigins) || getTargetOriginKey(t.url) !== skipped.origin)) {
+          if (
+            skipped &&
+            (Date.now() - (skipped.atMs || 0) > 12000 ||
+              !sharedIsAllowedOrigin(t.url, activeConfig.allowedOrigins) ||
+              getTargetOriginKey(t.url) !== skipped.origin)
+          ) {
             skippedNonHostTargets.delete(t.id);
           }
         }
