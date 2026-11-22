@@ -345,7 +345,7 @@ export function createCdpManager({ bundleCtrl, metricsReader, hasSqlite, runOnce
             const prev = pushedSessions.get(cid) || { hash: '', pendingActive: false };
             let metricsDir = endpoint.conversationsDir;
             let rawSig = getDbSignature(cid, metricsDir);
-            if (!rawSig && activeConfig.modules?.sshRemote !== false) {
+            if (!rawSig && activeConfig.modules?.sshRemote === true) {
               const remote = sshRemoteCtrl.getRemoteMetricsSource(cid, {
                 sshHosts: activeConfig.sshHosts,
                 force

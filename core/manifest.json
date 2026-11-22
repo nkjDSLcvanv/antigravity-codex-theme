@@ -9,8 +9,8 @@
       "bytes": 3766
     },
     "daemon/cdp-bridge.mjs": {
-      "sha256": "2057ae5e472462b37c71f2ef265c349312aacaa0b8f42b629448d7cc0efdcb0c",
-      "bytes": 27585
+      "sha256": "8b4928455e3f4f80f402fa67b99b3e59022900f7aeea3f9e9992c7a50f7d923e",
+      "bytes": 27584
     },
     "daemon/cdp-relaunch.mjs": {
       "sha256": "51e9a4212942252547594c3294a6cccba426d081b5934a69fab3068aa21370c1",
@@ -21,8 +21,8 @@
       "bytes": 2123
     },
     "daemon/paths.mjs": {
-      "sha256": "dbb1f7fdefeeecbebdd9d9f362611dc1acfef879b268a10cd02d46fc94c07e14",
-      "bytes": 13518
+      "sha256": "5695e55542886c7b795688be128adbb0364a92490907a6fc2c53b6b0c735e42d",
+      "bytes": 13567
     },
     "daemon/protobuf.mjs": {
       "sha256": "9e1cff0e22d8361fc80a9b7d4076a0071b64bbab036386d644713e2d82cf3367",
@@ -33,8 +33,8 @@
       "bytes": 21609
     },
     "daemon/ssh-remote.mjs": {
-      "sha256": "9aa358bda06888ec737d588c323fe5aa04486497aef146449e658be06dbf4fbd",
-      "bytes": 8192
+      "sha256": "99457f3f3c635fbacd6e63183a49fd72313093d528298eaae973c6379fd1e0d1",
+      "bytes": 10724
     },
     "daemon/telemetry-renderer.mjs": {
       "sha256": "186e438512a681e2eccbbdbc15f771ce30f7602af6a27f5d56ee6dda1d636ef7",

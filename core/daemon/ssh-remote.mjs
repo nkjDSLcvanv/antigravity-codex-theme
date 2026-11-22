@@ -1,11 +1,11 @@
 /**
- * core/daemon/ssh-remote.mjs — SSH Remote Conversation Metrics Sync
+ * core/daemon/ssh-remote.mjs — Opt-In SSH Remote Conversation Metrics Sync
  *
- * When a conversation ID (cid) is not found in the local Antigravity
- * conversations directory (e.g. an SSH Remote window), probes configured or
- * ~/.ssh/config hosts via passwordless SSH, mirrors its .db / .db-wal / .db-shm
- * files into a local temp cache on change, and exposes the cache directory to
- * the metrics reader without blocking the daemon poll loop.
+ * When enabled via `modules.sshRemote: true` and explicit `sshHosts: ["..."]`
+ * in `user/config.json`, probes the configured SSH hosts for conversations
+ * missing from the local `conversations/` directory, incrementally mirrors
+ * changed `.db` / `.db-wal` / `.db-shm` files into a 0700-protected local cache
+ * directory, and periodically prunes stale cache entries.
  */
 
 import fs from 'node:fs';
@@ -14,101 +14,163 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+const defaultExecFileAsync = promisify(execFile);
 
-const SSH_CACHE_DIR = path.join(os.tmpdir(), 'ag-codex-ssh-cache');
-const VALID_CID_RE = /^[a-zA-Z0-9_-]{8,128}$/;
-const VALID_HOST_RE = /^[a-zA-Z0-9._:@-]+$/;
+export const DEFAULT_SSH_CACHE_DIR = path.join(os.tmpdir(), 'ag-codex-ssh-cache');
+export const VALID_CID_RE = /^[a-zA-Z0-9_-]{8,128}$/;
+// Must not start with '-' (prevents CLI option injection); allows user@host, aliases, IPv4/domain.
+export const VALID_HOST_RE = /^[a-zA-Z0-9_@][a-zA-Z0-9._:@-]{0,127}$/;
+
 const SYNC_INTERVAL_MS = 4000;
 const NOT_FOUND_COOLDOWN_MS = 25000;
+const PRUNE_INTERVAL_MS = 30 * 60 * 1000;
+const DEFAULT_MAX_CACHE_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+const DEFAULT_MAX_CACHED_CONVERSATIONS = 24;
+const STALE_STAGING_MAX_AGE_MS = 10 * 60 * 1000;
 const SSH_TIMEOUT_MS = 6000;
 const SCP_TIMEOUT_MS = 20000;
 
-export function parseSshConfigHosts(sshConfigText) {
-  const hosts = [];
-  const seen = new Set();
-  for (const rawLine of String(sshConfigText || '').split(/\r?\n/)) {
-    const line = rawLine.replace(/#.*$/, '').trim();
-    if (!line) continue;
-    const match = /^Host\s+(.+)$/i.exec(line);
-    if (!match) continue;
-    for (const token of match[1].trim().split(/\s+/)) {
-      if (!token || /[*?!]/.test(token) || !VALID_HOST_RE.test(token)) continue;
-      if (!seen.has(token)) {
-        seen.add(token);
-        hosts.push(token);
-      }
-    }
-  }
-  return hosts;
+export function validateSshHost(host) {
+  if (typeof host !== 'string') return false;
+  const trimmed = host.trim();
+  if (!trimmed || trimmed.startsWith('-')) return false;
+  return VALID_HOST_RE.test(trimmed);
 }
 
-export function createSshRemoteController() {
+export function normalizeSshHosts(sshHostsConfig) {
+  if (!Array.isArray(sshHostsConfig) || sshHostsConfig.length === 0) return [];
+  const out = [];
+  const seen = new Set();
+  for (const raw of sshHostsConfig) {
+    const trimmed = String(raw || '').trim();
+    if (!validateSshHost(trimmed) || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+export function parseRemoteStatOutput(stdout, cid) {
+  const res = { db: '', wal: '', shm: '' };
+  for (const line of String(stdout || '').split(/\r?\n/)) {
+    const sep = line.lastIndexOf('|');
+    if (sep <= 0) continue;
+    const filePath = line.slice(0, sep).trim();
+    const sig = line.slice(sep + 1).trim();
+    if (!sig) continue;
+    if (filePath.endsWith(`/${cid}.db`)) res.db = sig;
+    else if (filePath.endsWith(`/${cid}.db-wal`)) res.wal = sig;
+    else if (filePath.endsWith(`/${cid}.db-shm`)) res.shm = sig;
+  }
+  return res;
+}
+
+export function ensureCacheDir(cacheDir = DEFAULT_SSH_CACHE_DIR) {
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
+  }
+  try {
+    fs.chmodSync(cacheDir, 0o700);
+  } catch {}
+}
+
+export function pruneStaleCacheFiles(
+  cacheDir = DEFAULT_SSH_CACHE_DIR,
+  {
+    maxAgeMs = DEFAULT_MAX_CACHE_AGE_MS,
+    maxConversations = DEFAULT_MAX_CACHED_CONVERSATIONS,
+    nowMs = Date.now()
+  } = {}
+) {
+  if (!fs.existsSync(cacheDir)) return { removedConversations: 0, removedStaging: 0 };
+  let removedConversations = 0;
+  let removedStaging = 0;
+  const convEntries = [];
+
+  let entries = [];
+  try {
+    entries = fs.readdirSync(cacheDir, { withFileTypes: true });
+  } catch {
+    return { removedConversations, removedStaging };
+  }
+
+  for (const entry of entries) {
+    const fullPath = path.join(cacheDir, entry.name);
+    if (entry.isDirectory() && entry.name.startsWith('.staging-')) {
+      try {
+        const st = fs.statSync(fullPath, { throwIfNoEntry: false });
+        if (!st || nowMs - st.mtimeMs >= STALE_STAGING_MAX_AGE_MS) {
+          fs.rmSync(fullPath, { recursive: true, force: true });
+          removedStaging++;
+        }
+      } catch {}
+      continue;
+    }
+
+    if (entry.isFile() && entry.name.endsWith('.db')) {
+      const cid = entry.name.slice(0, -3);
+      if (!VALID_CID_RE.test(cid)) continue;
+      try {
+        const dbStat = fs.statSync(fullPath, { throwIfNoEntry: false });
+        if (!dbStat) continue;
+        const walPath = path.join(cacheDir, `${cid}.db-wal`);
+        const walStat = fs.statSync(walPath, { throwIfNoEntry: false });
+        const lastModifiedMs = Math.max(dbStat.mtimeMs || 0, walStat?.mtimeMs || 0);
+        convEntries.push({ cid, lastModifiedMs });
+      } catch {}
+    }
+  }
+
+  convEntries.sort((a, b) => b.lastModifiedMs - a.lastModifiedMs);
+
+  for (let i = 0; i < convEntries.length; i++) {
+    const item = convEntries[i];
+    const expired = maxAgeMs > 0 && nowMs - item.lastModifiedMs > maxAgeMs;
+    const overLimit = maxConversations > 0 && i >= maxConversations;
+    if (!expired && !overLimit) continue;
+
+    for (const suffix of ['.db', '.db-wal', '.db-shm']) {
+      try {
+        fs.rmSync(path.join(cacheDir, `${item.cid}${suffix}`), { force: true });
+      } catch {}
+    }
+    removedConversations++;
+  }
+
+  return { removedConversations, removedStaging };
+}
+
+export function createSshRemoteController({
+  cacheDir = DEFAULT_SSH_CACHE_DIR,
+  execFileImpl = defaultExecFileAsync
+} = {}) {
   const cidHostMap = new Map();
   const notFoundUntil = new Map();
   const remoteSigCache = new Map();
   const lastSyncAt = new Map();
   const inFlight = new Set();
-
-  let cachedSshConfigMtime = '';
-  let cachedSshConfigHosts = [];
-
-  function ensureCacheDir() {
-    if (!fs.existsSync(SSH_CACHE_DIR)) {
-      fs.mkdirSync(SSH_CACHE_DIR, { recursive: true });
-    }
-  }
-
-  function resolveCandidateHosts(sshHostsConfig) {
-    if (Array.isArray(sshHostsConfig) && sshHostsConfig.length > 0) {
-      return sshHostsConfig
-        .map((h) => String(h || '').trim())
-        .filter((h) => h && VALID_HOST_RE.test(h));
-    }
-    const sshConfigPath = path.join(os.homedir(), '.ssh', 'config');
-    try {
-      const st = fs.statSync(sshConfigPath, { throwIfNoEntry: false });
-      if (!st || !st.isFile()) return [];
-      const mtimeSig = `${st.mtimeMs}:${st.size}`;
-      if (mtimeSig !== cachedSshConfigMtime) {
-        cachedSshConfigHosts = parseSshConfigHosts(fs.readFileSync(sshConfigPath, 'utf8'));
-        cachedSshConfigMtime = mtimeSig;
-      }
-      return cachedSshConfigHosts;
-    } catch {
-      return [];
-    }
-  }
-
-  function parseStatOutput(stdout, cid) {
-    const res = { db: '', wal: '', shm: '' };
-    for (const line of String(stdout || '').split(/\r?\n/)) {
-      const sep = line.lastIndexOf('|');
-      if (sep <= 0) continue;
-      const filePath = line.slice(0, sep).trim();
-      const sig = line.slice(sep + 1).trim();
-      if (!sig) continue;
-      if (filePath.endsWith(`/${cid}.db`)) res.db = sig;
-      else if (filePath.endsWith(`/${cid}.db-wal`)) res.wal = sig;
-      else if (filePath.endsWith(`/${cid}.db-shm`)) res.shm = sig;
-    }
-    return res;
-  }
+  let lastPruneAt = 0;
 
   async function statRemoteCid(host, cid) {
+    if (!validateSshHost(host) || !VALID_CID_RE.test(cid)) {
+      return { db: '', wal: '', shm: '' };
+    }
     const remotePattern = `~/.gemini/antigravity/conversations/${cid}.db*`;
-    const cmd = `stat -c '%n|%Y:%s' ${remotePattern} 2>/dev/null || true`;
-    const { stdout } = await execFileAsync(
+    // Compatible with both GNU coreutils stat (-c) and macOS/BSD stat (-f)
+    const cmd = `stat -c '%n|%Y:%s' ${remotePattern} 2>/dev/null || stat -f '%N|%m:%z' ${remotePattern} 2>/dev/null || true`;
+    const { stdout } = await execFileImpl(
       'ssh',
-      ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=3', host, cmd],
+      ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=3', '--', host, cmd],
       { timeout: SSH_TIMEOUT_MS, windowsHide: true }
     );
-    return parseStatOutput(stdout, cid);
+    return parseRemoteStatOutput(stdout, cid);
   }
 
   async function resolveHostForCid(cid, hosts) {
     const existing = cidHostMap.get(cid);
-    if (existing) return { host: existing, stat: null };
+    if (existing && hosts.includes(existing)) {
+      return { host: existing, stat: null };
+    }
 
     const results = await Promise.all(
       hosts.map(async (host) => {
@@ -139,14 +201,23 @@ export function createSshRemoteController() {
         fs.unlinkSync(srcPath);
       } catch {}
     }
+    try {
+      fs.chmodSync(destPath, 0o600);
+    } catch {}
   }
 
   async function syncCid(cid, hosts, force = false) {
     if (inFlight.has(cid)) return;
     inFlight.add(cid);
-    const stagingDir = path.join(SSH_CACHE_DIR, `.staging-${cid}`);
+    const stagingDir = path.join(cacheDir, `.staging-${cid}`);
     try {
-      ensureCacheDir();
+      ensureCacheDir(cacheDir);
+      const now = Date.now();
+      if (now - lastPruneAt >= PRUNE_INTERVAL_MS) {
+        lastPruneAt = now;
+        pruneStaleCacheFiles(cacheDir, { nowMs: now });
+      }
+
       const resolved = await resolveHostForCid(cid, hosts);
       if (!resolved) return;
 
@@ -154,17 +225,14 @@ export function createSshRemoteController() {
       const remoteStat = resolved.stat || (await statRemoteCid(host, cid));
       if (!remoteStat.db) return;
 
-      const localDb = path.join(SSH_CACHE_DIR, `${cid}.db`);
-      const localWal = path.join(SSH_CACHE_DIR, `${cid}.db-wal`);
-      const localShm = path.join(SSH_CACHE_DIR, `${cid}.db-shm`);
+      const localDb = path.join(cacheDir, `${cid}.db`);
+      const localWal = path.join(cacheDir, `${cid}.db-wal`);
+      const localShm = path.join(cacheDir, `${cid}.db-shm`);
       const prev = remoteSigCache.get(cid) || { db: '', wal: '', shm: '' };
       const needDb = !fs.existsSync(localDb) || prev.db !== remoteStat.db;
       const needWal = Boolean(remoteStat.wal) && (prev.wal !== remoteStat.wal || !fs.existsSync(localWal));
       const needShm = Boolean(remoteStat.shm) && (prev.shm !== remoteStat.shm || !fs.existsSync(localShm));
 
-      if (!force && !needDb && !needWal && !needShm) {
-        return;
-      }
       if (!needDb && !needWal && !needShm) {
         return;
       }
@@ -172,7 +240,7 @@ export function createSshRemoteController() {
       if (fs.existsSync(stagingDir)) {
         fs.rmSync(stagingDir, { recursive: true, force: true });
       }
-      fs.mkdirSync(stagingDir, { recursive: true });
+      fs.mkdirSync(stagingDir, { recursive: true, mode: 0o700 });
 
       const remoteSources = [];
       if (needDb) {
@@ -182,9 +250,9 @@ export function createSshRemoteController() {
         if (needShm) remoteSources.push(`${host}:~/.gemini/antigravity/conversations/${cid}.db-shm`);
       }
 
-      await execFileAsync(
+      await execFileImpl(
         'scp',
-        ['-q', '-B', '-o', 'ConnectTimeout=5', ...remoteSources, `${stagingDir}${path.sep}`],
+        ['-q', '-B', '-o', 'ConnectTimeout=5', '--', ...remoteSources, `${stagingDir}${path.sep}`],
         { timeout: SCP_TIMEOUT_MS, windowsHide: true }
       );
 
@@ -221,21 +289,23 @@ export function createSshRemoteController() {
 
   function getRemoteMetricsSource(cid, { sshHosts = [], force = false } = {}) {
     if (!VALID_CID_RE.test(String(cid || ''))) return null;
-    const hosts = resolveCandidateHosts(sshHosts);
+    // Strictly opt-in: only probe hosts explicitly listed in user config `sshHosts`.
+    const hosts = normalizeSshHosts(sshHosts);
     if (hosts.length === 0) return null;
 
     const now = Date.now();
     const cooldownUntil = notFoundUntil.get(cid) || 0;
     const lastAt = lastSyncAt.get(cid) || 0;
+    let syncPromise = null;
     if ((force || now - lastAt >= SYNC_INTERVAL_MS) && now >= cooldownUntil && !inFlight.has(cid)) {
-      syncCid(cid, hosts, force);
+      syncPromise = syncCid(cid, hosts, force);
     }
 
-    const localDb = path.join(SSH_CACHE_DIR, `${cid}.db`);
+    const localDb = path.join(cacheDir, `${cid}.db`);
     if (fs.existsSync(localDb)) {
-      return { dir: SSH_CACHE_DIR, host: cidHostMap.get(cid) || null };
+      return { dir: cacheDir, host: cidHostMap.get(cid) || null, syncPromise };
     }
-    return null;
+    return syncPromise ? { dir: null, host: null, syncPromise } : null;
   }
 
   return { getRemoteMetricsSource };
