@@ -235,6 +235,7 @@ async function runInstall() {
     'theme',
     'i18n',
     'metrics',
+    'sshRemote',
     'deadlockHealer',
     'zoomShortcuts',
     'cdpAutoRelaunch',

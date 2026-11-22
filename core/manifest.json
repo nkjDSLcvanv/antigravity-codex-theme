@@ -9,8 +9,8 @@
       "bytes": 3766
     },
     "daemon/cdp-bridge.mjs": {
-      "sha256": "53395d3d15acc9a736bfb5162b4bdeccb50cbf5adbd431c0cddb6164a049c3e0",
-      "bytes": 26632
+      "sha256": "151321d1b0f041f08fc722f500dd9fdf8e980774a81b770b8fcc2f53d4b7b2bb",
+      "bytes": 27995
     },
     "daemon/cdp-relaunch.mjs": {
       "sha256": "51e9a4212942252547594c3294a6cccba426d081b5934a69fab3068aa21370c1",
@@ -21,16 +21,20 @@
       "bytes": 2123
     },
     "daemon/paths.mjs": {
-      "sha256": "e0980c5d54e162096465e1b1fb4c6e6c4fd6e0ead5a952494ec90f67705333b7",
-      "bytes": 13379
+      "sha256": "5695e55542886c7b795688be128adbb0364a92490907a6fc2c53b6b0c735e42d",
+      "bytes": 13567
     },
     "daemon/protobuf.mjs": {
       "sha256": "9e1cff0e22d8361fc80a9b7d4076a0071b64bbab036386d644713e2d82cf3367",
       "bytes": 7375
     },
     "daemon/sqlite-metrics.mjs": {
-      "sha256": "f39540f7c6caea4a9f3ad84954255fdca7f8a3bd500f9af873207426087a9592",
-      "bytes": 21609
+      "sha256": "8d024621a5d17d87652152f64c1a0ae9323c081d557eea34ce5ffbb437fb33ad",
+      "bytes": 21966
+    },
+    "daemon/ssh-remote.mjs": {
+      "sha256": "c6f9c20d914547ade956d470e86cce6b9a7bd7b302f3e0b63e03b1929e8ab8eb",
+      "bytes": 18083
     },
     "daemon/telemetry-renderer.mjs": {
       "sha256": "186e438512a681e2eccbbdbc15f771ce30f7602af6a27f5d56ee6dda1d636ef7",
@@ -49,8 +53,8 @@
       "bytes": 12591
     },
     "installer/features.mjs": {
-      "sha256": "35dcb856e07b9ccd4f83dfc187e31bd19e2781feff6d92e71c6a3536c5ff990e",
-      "bytes": 5244
+      "sha256": "559efeb3d3c7c8220295c114ef7c5a1fff710a13755a6edf48607e241e7df53d",
+      "bytes": 5312
     },
     "installer/manifest.mjs": {
       "sha256": "4001613efc367581f47aa39e7080f39466810a38aff58c373eb654e54da5a651",
@@ -81,8 +85,8 @@
       "bytes": 11902
     },
     "runtime/50-telemetry-ui.js": {
-      "sha256": "defdc3c471a38476e1a43642c0556ed204ee45fca1256e907da6157370e17eb8",
-      "bytes": 51173
+      "sha256": "327f4ddac53569e4ca9329cba5528d4ee509e09ce4e63c6ae481b485382e1a1a",
+      "bytes": 51304
     },
     "runtime/60-i18n-engine.js": {
       "sha256": "cd47a833fe2df838b3a33ab6fa967c71d70707fd175650c098e8e3d58f1f53d2",

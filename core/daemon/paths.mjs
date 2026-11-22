@@ -166,12 +166,14 @@ export function createBundleController({ safeMode = false, cliChannel = null, ha
       theme: true,
       i18n: true,
       metrics: Boolean(hasSqlite),
+      sshRemote: false,
       deadlockHealer: true,
       zoomShortcuts: true,
       cdpAutoRelaunch: true,
       customCss: true,
       customJs: true
     },
+    sshHosts: [],
     themeVars: {},
     selectors: {},
     allowedOrigins: DEFAULT_ALLOWED_ORIGINS,
@@ -229,6 +231,7 @@ export function createBundleController({ safeMode = false, cliChannel = null, ha
         theme: true,
         i18n: true,
         metrics: true,
+        sshRemote: false,
         deadlockHealer: true,
         zoomShortcuts: true,
         cdpAutoRelaunch: true,
@@ -249,7 +252,10 @@ export function createBundleController({ safeMode = false, cliChannel = null, ha
     const hasGuardsFile = fs.existsSync(path.join(RUNTIME_DIR, '10-guards.js'));
     if (!hasThemeFiles) modules.theme = false;
     if (!hasI18nFiles) modules.i18n = false;
-    if (!hasSqlite || !hasMetricsFiles) modules.metrics = false;
+    if (!hasSqlite || !hasMetricsFiles) {
+      modules.metrics = false;
+      modules.sshRemote = false;
+    }
     if (!hasGuardsFile) {
       modules.deadlockHealer = false;
       modules.zoomShortcuts = false;
@@ -287,6 +293,7 @@ export function createBundleController({ safeMode = false, cliChannel = null, ha
       manualContextLimit,
       fallbackContextLimit,
       modules,
+      sshHosts: Array.isArray(userCfg.sshHosts) ? userCfg.sshHosts : [],
       themeVars,
       selectors: normalizedSelectors,
       allowedOrigins: Array.isArray(userCfg.allowedOrigins) ? userCfg.allowedOrigins : DEFAULT_ALLOWED_ORIGINS,

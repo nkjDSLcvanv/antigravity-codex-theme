@@ -942,7 +942,8 @@
 
       for (let i = 0; i < toolbars.length; i++) {
         const tb = toolbars[i];
-        const row = tb.firstElementChild;
+        tb.querySelectorAll(':scope > button > .ag-turn-metrics').forEach((el) => el.remove());
+        const row = tb.querySelector(':scope > div') || tb.lastElementChild;
         if (!row) continue;
         let badge = row.querySelector(':scope > .ag-turn-metrics');
         if (!MODULES.metrics) {

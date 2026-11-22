@@ -60,13 +60,18 @@ export function createMetricsReader({ getDatabaseSync, getConfig }) {
   }
 
   function parseConversationMetrics(cascadeId, conversationsDir, extraOpts = {}) {
-    const DatabaseSync = getDatabaseSync();
-    if (!DatabaseSync) return null;
+    const customOpenDb = extraOpts && typeof extraOpts.openDb === 'function' ? extraOpts.openDb : null;
+    const DatabaseSync = customOpenDb ? null : getDatabaseSync();
+    if (!customOpenDb && !DatabaseSync) return null;
     if (!cascadeId || !/^[0-9a-f-]{36}$/i.test(cascadeId)) return null;
 
     const cfg = getConfig() || {};
-    const dbPath = path.join(conversationsDir, `${cascadeId}.db`);
-    const rawDbSig = getDbSignature(cascadeId, conversationsDir);
+    const dbPath =
+      (extraOpts && typeof extraOpts.cacheKey === 'string' && extraOpts.cacheKey) ||
+      path.join(conversationsDir, `${cascadeId}.db`);
+    const rawDbSig =
+      (extraOpts && typeof extraOpts.rawDbSig === 'string' && extraOpts.rawDbSig) ||
+      getDbSignature(cascadeId, conversationsDir);
     if (!rawDbSig) return { cid: cascadeId, cascadeId, hasData: false };
 
     const manualLim = cfg.manualContextLimit || 0;
@@ -84,7 +89,7 @@ export function createMetricsReader({ getDatabaseSync, getConfig }) {
 
     let db;
     try {
-      db = new DatabaseSync(dbPath, { readOnly: true, timeout: 200 });
+      db = customOpenDb ? customOpenDb() : new DatabaseSync(dbPath, { readOnly: true, timeout: 200 });
       const metaStat = db.prepare('SELECT COUNT(*) AS cnt, COALESCE(MAX(idx), -1) AS maxIdx FROM gen_metadata').get();
       const rowCount = metaStat?.cnt ?? 0;
       const maxIdx = metaStat?.maxIdx ?? -1;

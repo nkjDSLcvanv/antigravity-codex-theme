@@ -17,6 +17,7 @@ import { createCdpRelaunchController } from './cdp-relaunch.mjs';
 const __bridgeDir = path.dirname(fileURLToPath(import.meta.url));
 let getLsLogSig = () => '';
 let getDbSignature = () => null;
+let createSshRemoteController = () => ({ getRemoteMetricsSource: () => null });
 if (fs.existsSync(path.join(__bridgeDir, 'ls-log.mjs'))) {
   try {
     const lsMod = await import('./ls-log.mjs');
@@ -27,6 +28,14 @@ if (fs.existsSync(path.join(__bridgeDir, 'sqlite-metrics.mjs'))) {
   try {
     const sqMod = await import('./sqlite-metrics.mjs');
     if (typeof sqMod.getDbSignature === 'function') getDbSignature = sqMod.getDbSignature;
+  } catch {}
+}
+if (fs.existsSync(path.join(__bridgeDir, 'ssh-remote.mjs'))) {
+  try {
+    const sshMod = await import('./ssh-remote.mjs');
+    if (typeof sshMod.createSshRemoteController === 'function') {
+      createSshRemoteController = sshMod.createSshRemoteController;
+    }
   } catch {}
 }
 
@@ -108,6 +117,7 @@ export function createCdpManager({ bundleCtrl, metricsReader, hasSqlite, runOnce
   const targetMetaMap = new Map();
   const targetThemeModes = new Map();
   const cdpRelaunchCtrl = createCdpRelaunchController();
+  const sshRemoteCtrl = createSshRemoteController();
   let isSyncing = false;
   let syncTickCount = 0;
   let lastTargetDiscoveryMs = 0;
@@ -333,15 +343,39 @@ export function createCdpManager({ bundleCtrl, metricsReader, hasSqlite, runOnce
 
           for (const cid of activeCascadeIds) {
             const prev = pushedSessions.get(cid) || { hash: '', pendingActive: false };
-            const rawSig = getDbSignature(cid, endpoint.conversationsDir) || 'empty';
-            const lsSig = prev.pendingActive ? getLsLogSig(endpoint.lsLogFile) : '';
+            let rawSig = getDbSignature(cid, endpoint.conversationsDir);
+            let remoteSource = null;
+            if (!rawSig && activeConfig.modules?.sshRemote === true) {
+              remoteSource = sshRemoteCtrl.getRemoteMetricsSource(cid, {
+                sshHosts: activeConfig.sshHosts,
+                force
+              });
+              if (remoteSource?.sig && typeof remoteSource.openDb === 'function') {
+                rawSig = remoteSource.sig;
+              }
+            }
+            rawSig = rawSig || 'empty';
+            const isRemote = Boolean(remoteSource?.sig && typeof remoteSource.openDb === 'function');
+            const lsSig = prev.pendingActive && !isRemote ? getLsLogSig(endpoint.lsLogFile) : '';
             const sessionKey = `${cid}@${rawSig}|lim:${activeConfig.manualContextLimit || 0}:${activeConfig.fallbackContextLimit || 256000}|ly:${activeConfig.telemetryLayout}:${activeConfig.telemetryCacheMode}${lsSig ? `|ls:${lsSig}` : ''}`;
             if (!force && sessionKey === prev.hash) continue;
 
-            const payload = metricsReader.parseConversationMetrics(cid, endpoint.conversationsDir, {
-              lsLogFile: endpoint.lsLogFile,
-              lsSig
-            });
+            const payload = metricsReader.parseConversationMetrics(
+              cid,
+              endpoint.conversationsDir,
+              isRemote
+                ? {
+                    cacheKey: `ssh://${remoteSource.host || 'remote'}/${cid}`,
+                    rawDbSig: remoteSource.sig,
+                    openDb: remoteSource.openDb,
+                    lsLogFile: '',
+                    lsSig: ''
+                  }
+                : {
+                    lsLogFile: endpoint.lsLogFile,
+                    lsSig
+                  }
+            );
             if (!payload || payload.transientError) {
               if (force && payload?.cachedPayload) {
                 await send('Runtime.evaluate', {
