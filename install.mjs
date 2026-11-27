@@ -271,6 +271,7 @@ async function runInstall() {
     'metrics',
     'quota',
     'quotaSidebar',
+    'activityView',
     'sshRemote',
     'promptSuggestions',
     'deadlockHealer',
@@ -306,6 +307,14 @@ async function runInstall() {
   } else {
     if (typeof currentCfg.modules.quota !== 'boolean') currentCfg.modules.quota = true;
     if (typeof currentCfg.modules.quotaSidebar !== 'boolean') currentCfg.modules.quotaSidebar = true;
+  }
+  if (
+    !fs.existsSync(path.join(targetCore, 'runtime', '65-activity-view.js')) ||
+    !fs.existsSync(path.join(targetCore, 'daemon', 'activity-previews.mjs'))
+  ) {
+    currentCfg.modules.activityView = false;
+  } else if (typeof currentCfg.modules.activityView !== 'boolean') {
+    currentCfg.modules.activityView = false;
   }
   if (
     !fs.existsSync(path.join(targetCore, 'runtime', '70-prompt-suggestions.js')) ||

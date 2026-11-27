@@ -33,6 +33,7 @@ const protoMod = await loadOptionalModule('daemon/protobuf.mjs');
 const lsLogMod = await loadOptionalModule('daemon/ls-log.mjs');
 const sqliteMetricsMod = await loadOptionalModule('daemon/sqlite-metrics.mjs');
 const promptSuggestMod = await loadOptionalModule('daemon/prompt-suggest.mjs');
+const activityPreviewsMod = await loadOptionalModule('daemon/activity-previews.mjs');
 
 const parseProto = protoMod?.parseProto || null;
 const parseGenMetadataRow = protoMod?.parseGenMetadataRow || null;
@@ -71,6 +72,12 @@ const promptSuggester = promptSuggestMod
   ? promptSuggestMod.createPromptSuggestionEngine({
       getConfig: () => bundleCtrl.getState().activeConfig,
       runOnce: cliOpts.runOnce
+    })
+  : null;
+
+const activityPreviewReader = activityPreviewsMod
+  ? activityPreviewsMod.createActivityPreviewReader({
+      getDatabaseSync: () => DatabaseSync
     })
   : null;
 
@@ -113,6 +120,7 @@ const cdpManager = createCdpManager({
   bundleCtrl,
   metricsReader,
   promptSuggester,
+  activityPreviewReader,
   hasSqlite: () => Boolean(DatabaseSync && sqliteMetricsMod),
   runOnce: cliOpts.runOnce,
   safeMode: cliOpts.safeMode,

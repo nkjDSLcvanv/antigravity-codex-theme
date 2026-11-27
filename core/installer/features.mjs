@@ -114,6 +114,23 @@ export const FEATURE_GROUPS = Object.freeze({
       'daemon/prompt-suggest.mjs'
     ],
     aliases: ['suggest', 'suggestions', 'promptsuggestions', 'prompt-suggestions', 'ghost', 'ghosttext']
+  },
+  activity: {
+    id: 'activity',
+    label: '侧栏活动视图（Activity View，⌥⌘U / Ctrl+Alt+U，默认关闭）',
+    defaultEnabled: false,
+    configKeys: ['activityView'],
+    sparsePaths: [
+      '/core/styles/38-activity-view.css',
+      '/core/runtime/65-activity-view.js',
+      '/core/daemon/activity-previews.mjs'
+    ],
+    coreRelPaths: [
+      'styles/38-activity-view.css',
+      'runtime/65-activity-view.js',
+      'daemon/activity-previews.mjs'
+    ],
+    aliases: ['activity', 'activityview', 'activity-view', 'priority']
   }
 });
 
@@ -134,7 +151,7 @@ function parseFeatureTokenList(raw) {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   if (tokens.length === 0) {
-    throw new Error('Empty feature list. Expected one or more of: theme, i18n, metrics, fixes, suggest, all');
+    throw new Error('Empty feature list. Expected one or more of: theme, i18n, metrics, fixes, suggest, activity, all');
   }
   const ids = [];
   for (const tok of tokens) {
@@ -143,7 +160,7 @@ function parseFeatureTokenList(raw) {
     }
     const resolved = ALIAS_TO_FEATURE.get(tok);
     if (!resolved) {
-      throw new Error(`Unknown feature "${tok}". Valid options: theme, i18n, metrics, fixes, suggest, all`);
+      throw new Error(`Unknown feature "${tok}". Valid options: theme, i18n, metrics, fixes, suggest, activity, all`);
     }
     if (!ids.includes(resolved)) ids.push(resolved);
   }
@@ -186,7 +203,7 @@ export function parseFeatureSelection({ onlyArg = null, withoutArg = null } = {}
 }
 
 export function getSparseCheckoutPaths(
-  selected = { theme: true, i18n: true, metrics: true, fixes: true, suggest: false }
+  selected = { theme: true, i18n: true, metrics: true, fixes: true, suggest: false, activity: false }
 ) {
   const out = [...BASE_SPARSE_PATHS];
   for (const [id, meta] of Object.entries(FEATURE_GROUPS)) {
