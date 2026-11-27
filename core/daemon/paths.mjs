@@ -200,6 +200,11 @@ export function normalizeFontsConfig(raw) {
   };
 }
 
+function wallpaperRevision(config) {
+  const value = config?.appearance?.wallpaper;
+  return typeof value === 'string' && value ? crypto.createHash('sha256').update(value).digest('hex') : '';
+}
+
 export function sanitizeConfigPatch(currentCfg, patch) {
   const base = currentCfg && typeof currentCfg === 'object' ? JSON.parse(JSON.stringify(currentCfg)) : {};
   if (!patch || typeof patch !== 'object') return base;
@@ -277,6 +282,7 @@ export function createBundleController({
   cliOpts = {},
   daemonBootId = DAEMON_BOOT_ID
 } = {}) {
+  const cfgPath = path.join(USER_DIR, 'config.json');
   let cachedBundleSig = '';
   let cachedInjectScript = '';
   let cachedPatchVersion = '';
@@ -328,7 +334,7 @@ export function createBundleController({
     const userFiles = safeMode
       ? []
       : [
-          path.join(USER_DIR, 'config.json'),
+          cfgPath,
           path.join(USER_DIR, 'custom.css'),
           path.join(USER_DIR, 'i18n.override.json'),
           path.join(USER_DIR, 'custom.js')
@@ -344,7 +350,7 @@ export function createBundleController({
       return false;
     }
 
-    const userCfg = safeMode ? {} : readJsonSafe(path.join(USER_DIR, 'config.json'), {});
+    const userCfg = safeMode ? {} : readJsonSafe(cfgPath, {});
     const enabled = safeMode ? true : userCfg.enabled !== false;
     const channel = cliChannel || userCfg.channel || 'auto';
     const preset = normalizeThemePreset(userCfg.preset);
@@ -591,12 +597,14 @@ export function createBundleController({
     return true;
   }
 
-  function updateUserConfig(patch) {
+  function updateUserConfig(patch, { expectedWallpaperRevision } = {}) {
     if (safeMode) return { ok: false, error: 'safeMode enabled' };
-    const cfgPath = path.join(USER_DIR, 'config.json');
     try {
       fs.mkdirSync(USER_DIR, { recursive: true });
       const current = readJsonSafe(cfgPath, {});
+      if (expectedWallpaperRevision !== undefined && wallpaperRevision(current) !== expectedWallpaperRevision) {
+        return { ok: false, error: 'wallpaper_import_superseded' };
+      }
       const next = sanitizeConfigPatch(current, patch);
       const serialized = JSON.stringify(next, null, 2) + '\n';
       const tmpPath = `${cfgPath}.tmp.${process.pid}.${Date.now()}`;
@@ -620,6 +628,7 @@ export function createBundleController({
   return {
     rebuildBundleIfNeeded,
     updateUserConfig,
+    readWallpaperRevision: () => (safeMode ? '' : wallpaperRevision(readJsonSafe(cfgPath, {}))),
     getState: () => ({
       activeConfig,
       cachedInjectScript,

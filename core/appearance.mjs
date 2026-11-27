@@ -1,5 +1,5 @@
 export const DEFAULT_PRESET = 'codex-pure-white';
-export const THEME_PRESETS = Object.freeze([DEFAULT_PRESET, 'codex-dark', 'claude', 'vscode', 'typora']);
+const THEME_PRESETS = [DEFAULT_PRESET, 'codex-dark', 'claude', 'vscode', 'typora'];
 export const MAX_WALLPAPER_BYTES = 3 * 1024 * 1024;
 export const MIN_SURFACE_OPACITY = 60;
 export const DEFAULT_APPEARANCE = Object.freeze({

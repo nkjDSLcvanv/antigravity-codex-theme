@@ -5,16 +5,16 @@
   "fullMetricsNodeVersion": "22.13.0",
   "files": {
     "appearance.mjs": {
-      "sha256": "ee6e992362dfc734eb66522c8be7bd5a1fbf890c740c54aa42169b7c955a34bd",
-      "bytes": 2219
+      "sha256": "bdec88585a8b999b0bfb57fdfa55be90b63e4b676ef9846e223aad8b81f89878",
+      "bytes": 2197
     },
     "daemon.mjs": {
       "sha256": "ae5351637858a4c9e4b0fd64762feb05c43988b335a14d141301b029dc4577d2",
       "bytes": 5269
     },
     "daemon/cdp-bridge.mjs": {
-      "sha256": "e9e370abef05dc0d37911c3baf7373f8a55e70aae4625510c302130d14935fb9",
-      "bytes": 58509
+      "sha256": "2c0b5fb0825acd03c7ace50d593f6092adb310c450d9a26b00d9e4a0c573adf4",
+      "bytes": 61493
     },
     "daemon/cdp-relaunch.mjs": {
       "sha256": "a26fbdc61ea7ec95871e1d7ce1b25b78c3ecfcdbcc677cadbd3d59108897d8e3",
@@ -25,8 +25,8 @@
       "bytes": 2123
     },
     "daemon/paths.mjs": {
-      "sha256": "eb66a8528e5b1a518ac1fd7a7fdfa63cccfd86fafa75a947d6001c5f8a2148e0",
-      "bytes": 27847
+      "sha256": "37beee54a4918bcf6fb3580c2e73c63844084f299afc5b765e7992d5bbbb6ced",
+      "bytes": 28308
     },
     "daemon/prompt-suggest.mjs": {
       "sha256": "0811aad02c949831685cea68730ce1f1dba9c6db052cd37bead0da9c6df8c763",
@@ -77,16 +77,16 @@
       "bytes": 21703
     },
     "runtime/00-head.js": {
-      "sha256": "fb34dd31b198f7b82882572a4188d38db38a49f3c1699c8fda079c3537fe2ae9",
-      "bytes": 20265
+      "sha256": "9ef2dc5f4079c2b82c53f097f09a11320430566d012fc2a9140b53047eb30a13",
+      "bytes": 20780
     },
     "runtime/10-guards.js": {
       "sha256": "f4aedd3e4c615f638fe213c3c9304e51467dd6eceb4ae57b7085db47f6155087",
       "bytes": 2542
     },
     "runtime/20-theme-sync.js": {
-      "sha256": "22f9f3a3f8c87efbc11c1a1381753241a24d554d4dec669d44a0c3d15be4e505",
-      "bytes": 7429
+      "sha256": "887e0a64c4c97739b6f864fe11bd85d2d26535a120b9ffc6d8ebba26668f34af",
+      "bytes": 10143
     },
     "runtime/30-antigravity-probe.js": {
       "sha256": "424f6a42c645d470edd70e9d8e490bcc40885d359d74631ce340cc9c6193516d",
@@ -113,8 +113,8 @@
       "bytes": 46575
     },
     "runtime/75-settings-ui.js": {
-      "sha256": "d0104cb7fedebd6f517105ca9cfc14f6c051c87a5b1d1d127722cc434dba4b69",
-      "bytes": 134454
+      "sha256": "ab80efa7f249f274e81fc075b250539c00b64a782a4be9cdaa0e87e5b5c1dc2b",
+      "bytes": 135824
     },
     "runtime/90-tail.js": {
       "sha256": "b5ce1b335be00a42beba9027210a4f05ea1d077768a52d877c91d3937b0cb109",
@@ -137,8 +137,8 @@
       "bytes": 8623
     },
     "styles/25-appearance.css": {
-      "sha256": "87f0da32fc0554bb77b280d492eaf6a3f7a7516b4abb1c39cb6f98e7005e9590",
-      "bytes": 4788
+      "sha256": "363b7e87a079e7759cb1bf7fcbb0270bea99000fe2497bca6baaf34c7d46a0aa",
+      "bytes": 5871
     },
     "styles/30-telemetry.css": {
       "sha256": "7add205cc330ca1e32c2357eb05d2c126b29cb5a83d553c545ed6e2297f0a580",

@@ -73,12 +73,35 @@ html:is([data-ag-preset="claude"], [data-ag-preset="vscode"], [data-ag-preset="t
   --ag-palette-accent-hover: color-mix(in srgb, var(--ag-palette-accent) 94%, white);
 }
 
-/* Tint the image at each panel so text, editors and popovers retain their own opacity. */
-html[data-ag-wallpaper] :is(body, [data-main-content-body], [data-side-panel-body], .bg-sidebar):where(
-  :not([data-has-browser-hole="true"], [data-has-browser-hole="true"] *, :has([data-has-browser-hole="true"]))
-) {
+/* Pull the image toward the current color mode to bound the contrast behind text. */
+html[data-ag-wallpaper] {
+  --ag-wallpaper-scrim: rgb(255 255 255 / 35%);
+}
+
+html[data-ag-wallpaper][data-ag-theme-mode="dark"] {
+  --ag-wallpaper-scrim: rgb(0 0 0 / 35%);
+}
+
+/* Paint neighboring panes when the outer sheet and body must leave a native browser cutout. */
+html[data-ag-wallpaper] :is(
+  body,
+  [data-main-content-body],
+  [data-side-panel-body],
+  .bg-sidebar,
+  :where(body[data-has-browser-hole="true"] [data-tiling-pane]) > [data-pane-id]
+):where(:not(
+  [data-has-browser-hole="true"],
+  :has([data-has-browser-hole="true"], [data-browser-hole]:not([data-browser-hole="false"])),
+  [data-browser-hole]:not([data-browser-hole="false"]),
+  [data-browser-hole]:not([data-browser-hole="false"]) *,
+  body[data-has-drawer-browser-hole="true"],
+  body[data-has-drawer-browser-hole="true"] [data-testid="mobile-layout"] .browser-hole-ancestor
+)) {
   --ag-wallpaper-tint: color-mix(in srgb, var(--background) var(--ag-surface-opacity), transparent);
-  background-image: linear-gradient(var(--ag-wallpaper-tint), var(--ag-wallpaper-tint)), var(--ag-wallpaper-image) !important;
+  background-image:
+    linear-gradient(var(--ag-wallpaper-tint), var(--ag-wallpaper-tint)),
+    linear-gradient(var(--ag-wallpaper-scrim), var(--ag-wallpaper-scrim)),
+    var(--ag-wallpaper-image) !important;
   background-size: cover !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
@@ -89,38 +112,62 @@ html[data-ag-wallpaper] .bg-sidebar {
   --ag-wallpaper-tint: color-mix(in srgb, var(--sidebar) var(--ag-surface-opacity), transparent) !important;
 }
 
-/* Scope the stop control to its own composer, including split panes and side questions. */
+@property --ag-composer-flow-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+html[data-ag-composer-motion] {
+  --ag-composer-flow-highlight: #183f8b;
+}
+
+html[data-ag-composer-motion][data-ag-theme-mode="dark"] {
+  --ag-composer-flow-highlight: #eefcff;
+}
+
 html[data-ag-composer-motion] :is(.surface-composer, [id="antigravity.agentSidePanelInputBox"]):not(:has(.surface-composer)):has([data-lexical-editor="true"])::after {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 2;
-  padding: 2px;
+  padding: 3px;
   border-radius: inherit;
   pointer-events: none;
-  background-image: linear-gradient(90deg, #6999e6, #ae86cb, #e89e91, #dcbd76, #70bcaa, #6999e6);
-  background-size: 60% 100%;
-  background-repeat: repeat-x;
+  background-image: conic-gradient(
+    from var(--ag-composer-flow-angle),
+    #436fe2 0deg 24deg,
+    #8259de 67deg,
+    #da5f8c 116deg,
+    #dc933e 163deg,
+    #24a795 215deg,
+    #3186d2 275deg,
+    #3eb5e5 310deg,
+    var(--ag-composer-flow-highlight) 330deg 343deg,
+    #436fe2 360deg
+  );
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   mask-composite: exclude;
-  animation: ag-composer-flow var(--ag-composer-flow-period, 18s) linear infinite;
-  opacity: 0.75;
+  animation: ag-composer-flow 10s linear infinite;
+  transition: opacity 180ms ease;
+  opacity: 0.9;
 }
 
+/* Scope the stop control to its own composer, including split panes and side questions. */
 html[data-ag-composer-motion] :is(.surface-composer, [id="antigravity.agentSidePanelInputBox"]):not(:has(.surface-composer)):has([data-lexical-editor="true"]):has(
   :is([data-testid="input-cancel-button"], [data-tooltip-id="input-send-button-cancel-tooltip"], button[aria-label^="Cancel ("], button[aria-label^="取消生成"]):not([hidden], [disabled], [aria-hidden="true"], [aria-disabled="true"])
 )::after {
-  --ag-composer-flow-period: 4s;
+  --ag-composer-flow-rate: 5;
   opacity: 1;
 }
 
-/* 60% background tiles repeat every 150% of the remaining positioning space. */
 @keyframes ag-composer-flow {
-  to { background-position: 150% 0; }
+  to { --ag-composer-flow-angle: 1turn; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   html[data-ag-composer-motion] :is(.surface-composer, [id="antigravity.agentSidePanelInputBox"]):not(:has(.surface-composer)):has([data-lexical-editor="true"])::after {
     animation: none;
+    transition: none;
   }
 }

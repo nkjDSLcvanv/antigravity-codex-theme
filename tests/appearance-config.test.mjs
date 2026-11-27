@@ -69,4 +69,20 @@ test('The bundle hot-reloads appearance state and safe mode uses the default app
   assert.equal(safe.getState().activeConfig.preset, 'codex-pure-white');
   assert.deepEqual(safe.getState().activeConfig.appearance, { wallpaperSet: false, surfaceOpacity: 85, composerMotion: false });
   assert.ok(!safe.getState().cachedInjectScript.includes(png));
+
+  await t.test('A delayed wallpaper import preserves an out-of-band wallpaper edit', () => {
+    const expectedWallpaperRevision = ctrl.readWallpaperRevision();
+    assert.ok(expectedWallpaperRevision);
+    assert.equal(ctrl.updateUserConfig({ preset: 'typora' }).ok, true);
+    assert.equal(ctrl.readWallpaperRevision(), expectedWallpaperRevision);
+
+    const configPath = path.join(tmpDir, 'user', 'config.json');
+    const manual = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    manual.appearance.wallpaper = '';
+    fs.writeFileSync(configPath, JSON.stringify(manual));
+    assert.deepEqual(ctrl.updateUserConfig({ appearance: { wallpaper: png } }, { expectedWallpaperRevision }), {
+      ok: false, error: 'wallpaper_import_superseded'
+    });
+    assert.equal(JSON.parse(fs.readFileSync(configPath, 'utf8')).appearance.wallpaper, '');
+  });
 });

@@ -1011,6 +1011,9 @@ function createSettingsUiHarness({ initialCache, existingBootSeq = 0 } = {}) {
     },
     __agGetSettingsState: (raw) => {
       bindingCalls.push({ name: '__agGetSettingsState', payload: JSON.parse(raw) });
+    },
+    __agUpdateSettings: (raw) => {
+      bindingCalls.push({ name: '__agUpdateSettings', payload: JSON.parse(raw) });
     }
   };
   sandbox.window = sandbox;
@@ -1052,6 +1055,12 @@ function createSettingsUiHarness({ initialCache, existingBootSeq = 0 } = {}) {
     });
   };
 
+  const changeInPane = (target) => {
+    const pane = elementsById.get('ag-settings-pane');
+    assert.ok(pane, 'settings pane must be mounted');
+    pane.dispatch('change', { target });
+  };
+
   const cleanup = () => {
     const fns = (sandbox.__ag_cleanup_fns || []).splice(0);
     for (const fn of fns) fn();
@@ -1066,6 +1075,7 @@ function createSettingsUiHarness({ initialCache, existingBootSeq = 0 } = {}) {
     sandbox,
     mount,
     clickInPane,
+    changeInPane,
     cleanup,
     getPaneHtml,
     getNavVersion: () => navVerStub.textContent,
@@ -1074,6 +1084,42 @@ function createSettingsUiHarness({ initialCache, existingBootSeq = 0 } = {}) {
     bindingCalls
   };
 }
+
+test('Wallpaper selected before a hot reload is saved by the remounted settings UI', async (t) => {
+  const harness = createSettingsUiHarness();
+  t.after(harness.cleanup);
+  const dataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+  const decode = Promise.withResolvers();
+  let decoding;
+  harness.sandbox.crypto = { getRandomValues: (values) => values.fill(7) };
+  harness.sandbox.FileReader = class {
+    readAsDataURL() {
+      this.result = dataUrl;
+      this.onload();
+    }
+  };
+  harness.sandbox.Image = class {
+    decode() {
+      decoding = this.src;
+      return decode.promise;
+    }
+  };
+
+  harness.mount('1.4.3-before', { modules: { theme: true } });
+  harness.changeInPane({ id: 'ag-s-appearance-wallpaper-file', files: [{ type: 'image/png', size: 8 }] });
+  await Promise.resolve();
+  assert.equal(decoding, dataUrl);
+
+  harness.mount('1.4.3-after', { modules: { theme: true } });
+  decode.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
+  const writes = harness.bindingCalls.filter((call) => call.name === '__agUpdateSettings');
+  assert.equal(writes.length, 2);
+  const token = writes[0].payload.wallpaperImportStart;
+  assert.equal(token, '7-7-7-7');
+  assert.equal(writes[1].payload.wallpaperImportToken, token);
+  assert.deepEqual(writes[1].payload.patch, { appearance: { wallpaper: dataUrl } });
+});
 
 test('75-settings-ui recovers from hot-reload during phase=checking without deadlocking buttons (Issue #17)', () => {
   // Case A: Pre-existing transient cache with status=idle -> resets cleanly to idle and enables check button

@@ -152,7 +152,9 @@
       let refreshingModels = false;
       let refreshingAll = false;
       let appearanceError = '';
-      let wallpaperImport = 0;
+      // File reading can outlive a settings mount when another preference triggers a hot reload.
+      const wallpaperImport = window.__ag_settings_wallpaper_import ||= { task: null, finish: null };
+      let pendingSurfaceOpacity = null;
       let activeDlg = null;
       let activeSidebar = null;
       let boundSidebarClick = null;
@@ -430,10 +432,11 @@
             wallpaperReplace: '更换图片…',
             wallpaperRemove: '移除图片',
             wallpaperInvalid: '请选择有效且在大小限制内的 PNG、JPEG 或 WebP 图片。',
+            wallpaperSuperseded: '壁纸设置已更新，请重新选择图片。',
             surfaceOpacityLabel: '面板不透明度',
             surfaceOpacityDesc: '降低不透明度，让背景透过工作区和侧栏。',
             composerMotionLabel: '输入框彩色边框',
-            composerMotionDesc: '空闲时缓慢流动，会话运行时加快。',
+            composerMotionDesc: '空闲时 10 秒一圈，工作时 2 秒一圈。',
             appearanceSaveError: '外观设置保存失败，请重试。',
             secCore: '核心模块',
             modI18n: '中文界面汉化',
@@ -552,10 +555,11 @@
           wallpaperReplace: 'Replace image…',
           wallpaperRemove: 'Remove image',
           wallpaperInvalid: 'Choose a valid PNG, JPEG, or WebP image within the size limit.',
+          wallpaperSuperseded: 'Wallpaper settings changed. Choose the image again.',
           surfaceOpacityLabel: 'Panel opacity',
           surfaceOpacityDesc: 'Lower opacity to reveal the image behind the workspace and sidebar.',
           composerMotionLabel: 'Animated composer border',
-          composerMotionDesc: 'Flows slowly at rest and speeds up while the session is working.',
+          composerMotionDesc: 'One lap every 10 seconds when idle and every 2 seconds while working.',
           appearanceSaveError: 'Could not save appearance settings. Try again.',
           secCore: 'Core Modules',
           modI18n: 'Chinese UI Localization',
@@ -912,24 +916,37 @@
         renderPane();
       }
 
-      async function commitAppearancePatch(patch) {
+      async function commitAppearancePatch(patch, wallpaperImportToken) {
         appearanceError = '';
-        const res = await callDaemonBinding('__agUpdateSettings', { patch });
+        const res = await callDaemonBinding('__agUpdateSettings', { patch, wallpaperImportToken });
         if (disposed) return;
+        if (patch.appearance?.surfaceOpacity === pendingSurfaceOpacity) pendingSurfaceOpacity = null;
         if (res?.ok) {
           applyRemoteState(res, true);
         } else {
-          appearanceError = 'appearanceSaveError';
+          appearanceError = res?.error === 'wallpaper_import_superseded' ? 'wallpaperSuperseded' : 'appearanceSaveError';
           renderPane();
         }
       }
 
       async function importWallpaper(file) {
         if (!file) return;
-        const importId = ++wallpaperImport;
+        if (file.size > maxWallpaperBytes || !/^image\/(png|jpeg|webp)$/.test(file.type)) {
+          wallpaperImport.task = null;
+          wallpaperImport.finish?.(null, null, 'wallpaperInvalid');
+          return;
+        }
+        const task = window.crypto.getRandomValues(new Uint32Array(4)).join('-');
+        wallpaperImport.task = task;
+        try {
+          window.__agUpdateSettings(JSON.stringify({ wallpaperImportStart: task }));
+        } catch {
+          wallpaperImport.task = null;
+          wallpaperImport.finish?.(null, task, 'appearanceSaveError');
+          return;
+        }
         let wallpaper;
         try {
-          if (file.size > maxWallpaperBytes || !/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error();
           wallpaper = await new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result);
@@ -940,14 +957,21 @@
           image.src = wallpaper;
           await image.decode();
         } catch {
-          if (!disposed && importId === wallpaperImport) {
-            appearanceError = 'wallpaperInvalid';
-            renderPane();
-          }
-          return;
+          wallpaper = null;
         }
-        if (!disposed && importId === wallpaperImport) await commitAppearancePatch({ appearance: { wallpaper } });
+        if (wallpaperImport.task !== task) return;
+        wallpaperImport.task = null;
+        wallpaperImport.finish?.(wallpaper, task, 'wallpaperInvalid');
       }
+
+      wallpaperImport.finish = (wallpaper, task, error) => {
+        if (wallpaper) {
+          void commitAppearancePatch({ appearance: { wallpaper } }, task);
+        } else {
+          appearanceError = error;
+          renderPane();
+        }
+      };
 
       async function commitPatch(patch) {
         // Optimistic local state update for snappy UX
@@ -1774,6 +1798,7 @@
       function renderAppearanceSection(cfg, s) {
         const enabled = cfg.modules.theme !== false;
         const appearance = cfg.appearance;
+        const surfaceOpacity = pendingSurfaceOpacity ?? appearance.surfaceOpacity;
         const preset = cfg.preset === 'codex-dark' ? 'codex-pure-white' : cfg.preset;
         const choices = appearancePresets.map(([id, name]) => `
           <button type="button" id="ag-s-appearance-${id}" class="ag-s-preset" data-theme-preset="${id}" aria-pressed="${preset === id}">
@@ -1809,8 +1834,8 @@
                   <label class="ag-s-row-label" for="ag-s-appearance-opacity">${escHtml(s.surfaceOpacityLabel)}</label>
                   <div class="ag-s-row-desc" id="ag-s-opacity-hint">${escHtml(s.surfaceOpacityDesc)}</div>
                   <div class="ag-s-opacity-control">
-                    <input id="ag-s-appearance-opacity" type="range" min="${minSurfaceOpacity}" max="100" value="${appearance.surfaceOpacity}" aria-describedby="ag-s-opacity-hint" aria-valuetext="${appearance.surfaceOpacity}%" />
-                    <output for="ag-s-appearance-opacity" aria-hidden="true">${appearance.surfaceOpacity}%</output>
+                    <input id="ag-s-appearance-opacity" type="range" min="${minSurfaceOpacity}" max="100" value="${surfaceOpacity}" aria-describedby="ag-s-opacity-hint" aria-valuetext="${surfaceOpacity}%" />
+                    <output for="ag-s-appearance-opacity" aria-hidden="true">${surfaceOpacity}%</output>
                   </div>
                 </div>` : ''}
               </div>
@@ -2643,7 +2668,8 @@
             return;
           }
           if (control?.id === 'ag-s-appearance-opacity') {
-            commitAppearancePatch({ appearance: { surfaceOpacity: control.valueAsNumber } });
+            pendingSurfaceOpacity = control.valueAsNumber;
+            commitAppearancePatch({ appearance: { surfaceOpacity: pendingSurfaceOpacity } });
             return;
           }
           if (control?.id === 'ag-s-appearance-motion') {
@@ -2667,7 +2693,7 @@
             if (appearanceAction.id === 'ag-s-appearance-wallpaper-choose') {
               document.getElementById('ag-s-appearance-wallpaper-file')?.click();
             } else if (appearanceAction.id === 'ag-s-appearance-wallpaper-remove') {
-              wallpaperImport += 1;
+              wallpaperImport.task = null;
               commitAppearancePatch({ appearance: { wallpaper: '' } });
             } else if (appearanceAction.getAttribute('aria-pressed') !== 'true') {
               commitAppearancePatch({ preset: appearanceAction.dataset.themePreset });
@@ -3027,6 +3053,7 @@
       if (Array.isArray(window.__ag_cleanup_fns)) {
         window.__ag_cleanup_fns.push(() => {
           disposed = true;
+          wallpaperImport.finish = null;
           for (const entry of pendingReqs.values()) {
             if (entry && entry.timer) clearTimeout(entry.timer);
             if (entry && typeof entry.resolve === 'function') {

@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   parseFeatureSelection,
@@ -99,6 +100,7 @@ test('Assembled partial runtime bundles execute without ReferenceError when opti
     {
       name: 'theme-only',
       parts: ['00-head.js', '20-theme-sync.js', '90-tail.js'],
+      beforeDocumentRoot: true,
       modules: { theme: true, i18n: false, metrics: false, deadlockHealer: false, zoomShortcuts: false }
     },
     {
@@ -192,6 +194,7 @@ test('Assembled partial runtime bundles execute without ReferenceError when opti
     fakeWindow.Storage = { prototype: fakeWindow.localStorage };
     fakeWindow.NodeFilter = { SHOW_ELEMENT: 1, SHOW_TEXT: 4, FILTER_ACCEPT: 1, FILTER_REJECT: 2, FILTER_SKIP: 3 };
     fakeWindow.MutationObserver = class {
+      constructor(callback) { this.callback = callback; }
       observe() {}
       disconnect() {}
     };
@@ -218,7 +221,17 @@ test('Assembled partial runtime bundles execute without ReferenceError when opti
     sandbox.window = sandbox;
     sandbox.top = sandbox;
     vm.createContext(sandbox);
+    const root = fakeDocument.documentElement;
+    if (sc.beforeDocumentRoot) fakeDocument.documentElement = null;
     vm.runInContext(`const __AG_BOOT_PAYLOAD__ = globalThis.__AG_BOOT_PAYLOAD__;\n${code}`, sandbox);
+    if (sc.beforeDocumentRoot) {
+      assert.equal(sandbox.__ag_bundle_boot_seq, undefined);
+      const observer = sandbox.__ag_document_root_observer;
+      fakeDocument.documentElement = root;
+      observer.callback();
+      assert.equal(sandbox.__ag_document_root_observer, null);
+      assert.equal(sandbox.__ag_bundle_boot_seq, 1);
+    }
     assert.equal(sandbox.__ag_patch_version, '1.0.0-test', `${sc.name} should finish booting cleanly`);
     const mountedStyle = headChildren.find((el) => el.id === 'ag-codex-theme');
     assert.ok(mountedStyle && mountedStyle.textContent.length > 0, `${sc.name} should mount #ag-codex-theme style`);
@@ -252,7 +265,6 @@ test('core/daemon.mjs loads cleanly in a minimal sparse copy without metrics fil
     ]) {
       fs.copyFileSync(path.join(ROOT_DIR, rel), path.join(tmpDir, rel));
     }
-    const { execFileSync } = await import('node:child_process');
     const { pathToFileURL } = await import('node:url');
     const out = execFileSync(
       process.execPath,
@@ -271,4 +283,21 @@ test('core/daemon.mjs loads cleanly in a minimal sparse copy without metrics fil
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+});
+
+test('Installer CLI starts after rollback to a core without the appearance module', (t) => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ag-rollback-cli-'));
+  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+  fs.copyFileSync(path.join(ROOT_DIR, 'install.mjs'), path.join(tmpDir, 'install.mjs'));
+  const oldCore = path.join(tmpDir, 'core');
+  fs.cpSync(path.join(ROOT_DIR, 'core'), oldCore, { recursive: true });
+  fs.unlinkSync(path.join(oldCore, 'appearance.mjs'));
+  // Recreate the older updater's dependency on paths without any appearance imports.
+  fs.writeFileSync(path.join(oldCore, 'daemon', 'paths.mjs'), `export const ROOT_DIR = ${JSON.stringify(tmpDir)};\n`);
+
+  const out = execFileSync(process.execPath, ['install.mjs', 'sparse-paths', '--only', 'theme', '--json'], {
+    cwd: tmpDir,
+    encoding: 'utf8'
+  });
+  assert.equal(JSON.parse(out).selected.theme, true);
 });

@@ -432,7 +432,7 @@ test('shouldTriggerImmediateTargetDiscovery matches Swarm iframes, new host page
   assert.equal(shouldTriggerImmediateTargetDiscovery(null, attachedSet), false);
 });
 
-test('createCdpManager enables Target.setDiscoverTargets on host pages and attaches Swarm iframes immediately on CDP events', async () => {
+test('createCdpManager enables Target.setDiscoverTargets on host pages and attaches Swarm iframes immediately on CDP events', async (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ag-cdp-event-test-'));
   const portFile = path.join(tmpDir, 'DevToolsActivePort');
   let targetList = [];
@@ -475,6 +475,10 @@ test('createCdpManager enables Target.setDiscoverTargets on host pages and attac
       this.readyState = FakeWebSocket.OPEN;
       this.listeners = new Map();
       this.sentMethods = [];
+      this.documentScripts = new Map();
+      this.injectedVersions = [];
+      this.settingsResponses = 0;
+      this.settingsReplyExpressions = [];
       socketsByUrl.set(url, this);
       queueMicrotask(() => this._emit('open', {}));
     }
@@ -502,11 +506,22 @@ test('createCdpManager enables Target.setDiscoverTargets on host pages and attac
             result = { result: { value: true } };
           } else if (expr.includes('data-ag-theme-mode')) {
             result = { result: { value: 'light' } };
+          } else if (expr.includes('window.__ag_patch_version ===')) {
+            result = { result: { value: expr.includes(JSON.stringify(this.injectedVersions.at(-1))) } };
           } else {
+            const version = expr.match(/window\.__ag_test = "([^"]+)";/)?.[1];
+            if (version) this.injectedVersions.push(version);
+            if (expr.includes('window.__ag_on_settings_state(')) {
+              this.settingsResponses += 1;
+              this.settingsReplyExpressions.push(expr);
+            }
             result = { result: { value: true } };
           }
         } else if (req.method === 'Page.addScriptToEvaluateOnNewDocument') {
           result = { identifier: `doc-${req.id}` };
+          this.documentScripts.set(result.identifier, req.params.source);
+        } else if (req.method === 'Page.removeScriptToEvaluateOnNewDocument') {
+          this.documentScripts.delete(req.params.identifier);
         }
         this._emit('message', { data: JSON.stringify({ id: req.id, result }) });
       });
@@ -540,13 +555,27 @@ test('createCdpManager enables Target.setDiscoverTargets on host pages and attac
       }
     ];
 
+    let surfaceOpacity = 85;
+    const opacityWrites = [];
+    const wallpaperWrites = [];
+    const workerEvents = [];
+    const patchVersion = () => `1.4.2-test-${surfaceOpacity}-${wallpaperWrites.length}`;
     const bundleCtrl = {
       rebuildBundleIfNeeded: () => false,
+      updateUserConfig: (patch) => {
+        if (Object.hasOwn(patch.appearance, 'surfaceOpacity')) {
+          surfaceOpacity = patch.appearance.surfaceOpacity;
+          opacityWrites.push(surfaceOpacity);
+        }
+        if (Object.hasOwn(patch.appearance, 'wallpaper')) wallpaperWrites.push(patch.appearance.wallpaper);
+        return { ok: true };
+      },
       getState: () => ({
-        cachedInjectScript: 'window.__ag_test = 1;',
-        cachedPatchVersion: '1.4.2-test',
+        cachedInjectScript: `window.__ag_test = ${JSON.stringify(patchVersion())};`,
+        cachedPatchVersion: patchVersion(),
         activeConfig: {
           enabled: true,
+          appearance: { surfaceOpacity },
           allowedOrigins: ['http://127.0.0.1', 'https://127.0.0.1', 'vscode-file://', 'plugin://swarm--'],
           modules: { metrics: false, sshRemote: false, promptSuggestions: false },
           endpoints: [
@@ -565,6 +594,10 @@ test('createCdpManager enables Target.setDiscoverTargets on host pages and attac
 
     manager = createCdpManager({
       bundleCtrl,
+      promptSuggester: {
+        stop: () => workerEvents.push('stop'),
+        syncState: () => workerEvents.push('sync')
+      },
       metricsReader: { parseConversationMetrics: () => null },
       hasSqlite: () => false,
       runOnce: false,
@@ -659,21 +692,84 @@ test('createCdpManager enables Target.setDiscoverTargets on host pages and attac
     await waitUntil(() => listFetchCount >= fetchesAtBlock + 1 && socketsByUrl.has(swarm2WsUrl), 800);
     assert.ok(socketsByUrl.has(swarm2WsUrl), 'Follow-up sync after in-flight sync should attach SWARM_2');
 
-    // 4. closeAll() cancels pending immediate discovery timers without firing extra fetches
-    const fetchesBeforeClose = listFetchCount;
-    hostWs.emitCdpEvent({
-      method: 'Target.targetCreated',
-      params: {
-        targetInfo: {
-          targetId: 'SWARM_AFTER_CLOSE',
-          type: 'iframe',
-          url: 'plugin://swarm--swarm_board-56665/?token=after-close'
-        }
+    const sendSettings = (ws, payload) => ws.emitCdpEvent({
+      method: 'Runtime.bindingCalled',
+      params: { name: '__agUpdateSettings', payload: JSON.stringify(payload) }
+    });
+    const sendOpacity = (value) => sendSettings(hostWs, {
+      reqId: `opacity-${value}`, patch: { appearance: { surfaceOpacity: value } }
+    });
+    await t.test('Concurrent slider changes write once and leave one latest script on each target', async () => {
+      const sockets = [...socketsByUrl.values()];
+      await waitUntil(() => sockets.every((ws) => ws.injectedVersions.length > 0));
+      const updateStart = sockets.map((ws) => ws.injectedVersions.length);
+      const values = [74, 75, 76, 77, 78, 79];
+      for (const value of values) sendOpacity(value);
+      await waitUntil(() => hostWs.settingsResponses === values.length);
+      assert.deepEqual(opacityWrites, [79]);
+      for (const [index, ws] of sockets.entries()) {
+        assert.equal(ws.documentScripts.size, 1);
+        assert.ok([...ws.documentScripts.values()][0].includes(patchVersion()));
+        assert.deepEqual(ws.injectedVersions.slice(updateStart[index]), [patchVersion()]);
       }
     });
-    manager.closeAll();
-    await new Promise((r) => setTimeout(r, 140));
-    assert.equal(listFetchCount, fetchesBeforeClose, 'closeAll() must cancel pending immediate discovery timer');
+
+    await t.test('A wallpaper import can only finish if it is still current across host windows', async () => {
+      const peer = {
+        id: 'HOST_PAGE_2', type: 'page', title: 'Antigravity',
+        url: `https://127.0.0.1:${port}/c/conv-peer`,
+        webSocketDebuggerUrl: `ws://127.0.0.1:${port}/devtools/page/HOST_PAGE_2`
+      };
+      targetList = [...targetList, peer];
+      hostWs.emitCdpEvent({ method: 'Target.targetCreated', params: { targetInfo: { ...peer, targetId: peer.id } } });
+      await waitUntil(() => socketsByUrl.get(peer.webSocketDebuggerUrl)?.injectedVersions.length > 0);
+      const peerWs = socketsByUrl.get(peer.webSocketDebuggerUrl);
+      const older = '1-2-3-4';
+      const newer = '5-6-7-8';
+      const saveWallpaper = (ws, reqId, wallpaper, wallpaperImportToken) => sendSettings(ws, {
+        reqId, wallpaperImportToken, patch: { appearance: { wallpaper } }
+      });
+      const oldImage = 'older-test-wallpaper';
+      const newImage = 'newer-test-wallpaper';
+
+      sendSettings(hostWs, { wallpaperImportStart: older });
+      saveWallpaper(peerWs, 'removed', '');
+      await waitUntil(() => peerWs.settingsResponses === 1);
+      const hostReplyCount = hostWs.settingsResponses;
+      saveWallpaper(hostWs, 'late-import', oldImage, older);
+      await waitUntil(() => hostWs.settingsResponses === hostReplyCount + 1);
+      assert.deepEqual(wallpaperWrites, ['']);
+      assert.match(hostWs.settingsReplyExpressions.at(-1), /wallpaper_import_superseded/);
+
+      sendSettings(hostWs, { wallpaperImportStart: older });
+      sendSettings(peerWs, { wallpaperImportStart: newer });
+      saveWallpaper(hostWs, 'older-import', oldImage, older);
+      saveWallpaper(peerWs, 'newer-import', newImage, newer);
+      await waitUntil(() => peerWs.settingsResponses === 2 && hostWs.settingsResponses === hostReplyCount + 2);
+      assert.deepEqual(wallpaperWrites, ['', newImage]);
+    });
+
+    await t.test('Closing the renderer and daemon still saves accepted opacity', async () => {
+      const fetchesBeforeClose = listFetchCount;
+      hostWs.emitCdpEvent({
+        method: 'Target.targetCreated',
+        params: {
+          targetInfo: {
+            targetId: 'SWARM_AFTER_CLOSE',
+            type: 'iframe',
+            url: 'plugin://swarm--swarm_board-56665/?token=after-close'
+          }
+        }
+      });
+      sendOpacity(71);
+      hostWs.close();
+      const eventsBeforeClose = workerEvents.length;
+      manager.closeAll();
+      assert.deepEqual(opacityWrites, [79, 71]);
+      assert.deepEqual(workerEvents.slice(eventsBeforeClose), ['stop']);
+      await new Promise((r) => setTimeout(r, 140));
+      assert.equal(listFetchCount, fetchesBeforeClose, 'closeAll() must cancel pending immediate discovery timer');
+    });
   } finally {
     if (manager) manager.closeAll();
     globalThis.WebSocket = OrigWebSocket;

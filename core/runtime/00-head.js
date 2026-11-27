@@ -2,7 +2,7 @@
  * antigravity-codex-theme · Browser Runtime Bundle
  * Part 00: Bootstrap, Lifecycle Cleanup, Theme Variables & Stylesheet Injection
  */
-((boot) => {
+(function startBundle(boot) {
   const IS_SWARM_PLUGIN_FRAME = Boolean(
     window.top !== window &&
       window.location &&
@@ -11,6 +11,20 @@
   );
   if (window.top !== window && !IS_SWARM_PLUGIN_FRAME) return;
   if (!boot || typeof boot !== 'object') return;
+
+  // A new-document CDP script may run before Chromium creates the HTML element.
+  if (window.__ag_document_root_observer) {
+    window.__ag_document_root_observer.disconnect();
+    window.__ag_document_root_observer = null;
+  }
+  if (!document.documentElement) {
+    const observer = new MutationObserver(() => {
+      if (document.documentElement) startBundle(boot);
+    });
+    observer.observe(document, { childList: true });
+    window.__ag_document_root_observer = observer;
+    return;
+  }
 
   const PATCH_VERSION = boot.version || '1.4.3';
   const CORE_HASH = String(boot.coreHash || '');

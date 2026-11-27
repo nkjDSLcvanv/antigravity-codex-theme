@@ -390,11 +390,14 @@ export function createCdpManager({
   let immediateDiscoveryTimer = null;
   let pendingImmediateDiscovery = false;
   let lastFrameAttachedDiscoveryMs = 0;
+  let pendingOpacityWrite = null;
+  let pendingWallpaperImport = null;
   let closed = false;
   const TARGET_DISCOVERY_INTERVAL_MS = 12500;
   const FAST_WATCH_INTERVAL_MS = 650;
   const NORMAL_SYNC_INTERVAL_MS = 2500;
   const FRAME_ATTACHED_COOLDOWN_MS = 500;
+  const OPACITY_SAVE_DELAY_MS = 160;
 
   function clearImmediateDiscoveryTimer() {
     if (immediateDiscoveryTimer) {
@@ -450,6 +453,52 @@ export function createCdpManager({
       process.exit(0);
     }
     return false;
+  }
+
+  async function applySettingsPatch(patch, writeOptions) {
+    if (!checkLockOwnership()) return { ok: false, error: 'daemon no longer owns its lock' };
+    const result = typeof bundleCtrl.updateUserConfig === 'function'
+      ? bundleCtrl.updateUserConfig(patch, writeOptions)
+      : { ok: false, error: 'updateUserConfig unavailable' };
+    if (!result.ok || closed) return result;
+
+    const { activeConfig } = bundleCtrl.getState();
+    try { promptSuggester?.syncState?.(); } catch {}
+    try {
+      sshRemoteCtrl.syncState({
+        enabled: Boolean(activeConfig.enabled && activeConfig.modules?.sshRemote),
+        sshHosts: activeConfig.sshHosts
+      });
+    } catch {}
+    if (!activeConfig.enabled) targetThemeModes.clear();
+    for (const entry of attachedTargets.values()) {
+      if (!entry.hostConfirmed) continue;
+      try { await entry.checkAndInject(); } catch {}
+    }
+    return result;
+  }
+
+  function flushPendingOpacityWrite() {
+    const pending = pendingOpacityWrite;
+    if (!pending) return;
+    pendingOpacityWrite = null;
+    clearTimeout(pending.timer);
+    pending.resolve(applySettingsPatch({ appearance: { surfaceOpacity: pending.value } }));
+  }
+
+  function saveSettingsPatch(patch, writeOptions) {
+    const appearance = patch.appearance;
+    if (!Number.isFinite(appearance?.surfaceOpacity) || Object.keys(patch).length !== 1 || Object.keys(appearance).length !== 1) {
+      flushPendingOpacityWrite();
+      return applySettingsPatch(patch, writeOptions);
+    }
+
+    // Keep the latest slider change in the daemon even if its renderer reloads or closes.
+    pendingOpacityWrite ??= Promise.withResolvers();
+    pendingOpacityWrite.value = appearance.surfaceOpacity;
+    clearTimeout(pendingOpacityWrite.timer);
+    pendingOpacityWrite.timer = setTimeout(flushPendingOpacityWrite, OPACITY_SAVE_DELAY_MS);
+    return pendingOpacityWrite.promise;
   }
 
   function resolveParentThemeMode(targetId, channel) {
@@ -513,6 +562,8 @@ export function createCdpManager({
         let activeCascadeIds = [];
         const pushedSessions = new Map();
         let evalScriptId = null;
+        let evalScriptSource = '';
+        let injectionQueue = Promise.resolve();
         let hostConfirmed = isSwarmIframe;
         let currentTargetUrl = target.url || '';
         const pendingCallbacks = new Map();
@@ -588,20 +639,42 @@ export function createCdpManager({
           return { isHost: probe?.result?.result?.value === true, timedOut: false };
         };
 
-        const updateNewDocScript = async () => {
-          if (!hostConfirmed) return;
-          const { activeConfig } = bundleCtrl.getState();
+        const queueInjection = (operation) => {
+          const next = injectionQueue.then(operation);
+          injectionQueue = next.catch(() => {});
+          return next;
+        };
+
+        const getNewDocScriptSource = () =>
+          bundleCtrl.getState().activeConfig.enabled ? buildEffectiveScript() : '';
+
+        const syncNewDocScript = async () => {
+          if (!hostConfirmed || ws.readyState !== WebSocket.OPEN) return;
+          let source = getNewDocScriptSource();
+          if (source === evalScriptSource) return;
           if (evalScriptId) {
-            await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: evalScriptId });
-            evalScriptId = null;
-          }
-          if (activeConfig.enabled) {
-            const addRes = await send('Page.addScriptToEvaluateOnNewDocument', { source: buildEffectiveScript() });
-            if (addRes?.result?.identifier) {
-              evalScriptId = addRes.result.identifier;
+            const removed = await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: evalScriptId });
+            if (!removed || removed.error) {
+              if (ws.readyState === WebSocket.OPEN) ws.close();
+              return;
             }
+            evalScriptId = null;
+            evalScriptSource = '';
+            source = getNewDocScriptSource();
+          }
+          if (!source) return;
+
+          const added = await send('Page.addScriptToEvaluateOnNewDocument', { source });
+          if (added?.result?.identifier) {
+            evalScriptId = added.result.identifier;
+            evalScriptSource = source;
+          } else if (!added && ws.readyState === WebSocket.OPEN) {
+            // An unacknowledged registration has no handle. Detach before retrying.
+            ws.close();
           }
         };
+
+        const updateNewDocScript = () => queueInjection(syncNewDocScript);
 
         const inject = async () => {
           if (!hostConfirmed || !checkLockOwnership()) return false;
@@ -610,7 +683,8 @@ export function createCdpManager({
             expression: buildEffectiveScript(),
             returnByValue: true
           });
-          if (res?.error) {
+          if (!res) return false;
+          if (res.error) {
             console.error(`[Daemon] Injection error on ${target.id}:`, res.error.message || res.error);
             return false;
           }
@@ -731,25 +805,32 @@ export function createCdpManager({
           }
         };
 
-        const checkAndInject = async () => {
-          if (!hostConfirmed || !checkLockOwnership()) return;
+        const checkAndInject = ({ force = false } = {}) => queueInjection(async () => {
+          if (!hostConfirmed || !checkLockOwnership() || ws.readyState !== WebSocket.OPEN) return false;
           try {
-            const { activeConfig, cachedPatchVersion } = bundleCtrl.getState();
-            const checkRes = await send('Runtime.evaluate', {
-              expression:
-                '((window.__ag_last_daemon_hb = Date.now()), window.__ag_refresh_wait_ui && window.__ag_refresh_wait_ui(), window.__ag_patch_version === ' +
-                JSON.stringify(cachedPatchVersion) +
-                ' && (' +
-                JSON.stringify(!activeConfig.enabled) +
-                ' || (window.__ag_body_ready === true && !!document.getElementById("ag-codex-theme"))))',
-              returnByValue: true
-            });
-            if (checkRes?.result?.result?.value !== true) {
-              await inject();
-              await syncMetricsForSession(true);
+            await syncNewDocScript();
+            if (ws.readyState !== WebSocket.OPEN) return false;
+            if (!force) {
+              const { activeConfig, cachedPatchVersion } = bundleCtrl.getState();
+              const checkRes = await send('Runtime.evaluate', {
+                expression:
+                  '((window.__ag_last_daemon_hb = Date.now()), window.__ag_refresh_wait_ui && window.__ag_refresh_wait_ui(), window.__ag_patch_version === ' +
+                  JSON.stringify(cachedPatchVersion) +
+                  ' && (' +
+                  JSON.stringify(!activeConfig.enabled) +
+                  ' || (!!document.getElementById("ag-codex-theme") && (window.__ag_body_ready === true || ' +
+                  '(document.readyState === "loading" && typeof window.__ag_dcl_handler === "function")))))',
+                returnByValue: true
+              });
+              if (checkRes?.result?.result?.value === true) return true;
             }
-          } catch {}
-        };
+            const ok = await inject();
+            await syncMetricsForSession(true);
+            return ok;
+          } catch {
+            return false;
+          }
+        });
 
         let initialAttachDone = false;
         let navDebounceTimer = null;
@@ -800,8 +881,7 @@ export function createCdpManager({
             await send('Runtime.addBinding', { name: '__agCheckPluginUpdate' });
             await send('Runtime.addBinding', { name: '__agApplyPluginUpdate' });
           }
-          await updateNewDocScript();
-          const ok = await inject();
+          const ok = await checkAndInject({ force: true });
           if (!isSwarmIframe) {
             const modeRes = await send('Runtime.evaluate', {
               expression: `document.documentElement ? (document.documentElement.getAttribute('data-ag-theme-mode') || '') : ''`,
@@ -812,7 +892,6 @@ export function createCdpManager({
               targetThemeModes.set(target.id, resolvedMode);
             }
           }
-          await syncMetricsForSession(true);
           initialAttachDone = true;
           clearTimeout(attachTimeout);
           finishAttach(ok);
@@ -1038,9 +1117,7 @@ export function createCdpManager({
                   for (const entry of attachedTargets.values()) {
                     if (!entry.hostConfirmed) continue;
                     try {
-                      if (entry.updateNewDocScript) await entry.updateNewDocScript();
-                      if (entry.inject) await entry.inject();
-                      if (entry.syncMetricsForSession) await entry.syncMetricsForSession(true);
+                      await entry.checkAndInject({ force: true });
                     } catch {}
                   }
                 }
@@ -1099,36 +1176,28 @@ export function createCdpManager({
               try {
                 req = msg.params.payload ? JSON.parse(String(msg.params.payload)) : {};
               } catch {}
+              if (req?.wallpaperImportStart !== undefined) {
+                const token = req.wallpaperImportStart;
+                if (typeof token === 'string' && /^(?:\d{1,10}-){3}\d{1,10}$/.test(token) && checkLockOwnership()) {
+                  pendingWallpaperImport = { token, targetId: target.id, revision: bundleCtrl.readWallpaperRevision?.() };
+                }
+                return;
+              }
               const reqId = String(req?.reqId || '');
               const patch = req?.patch && typeof req.patch === 'object' ? req.patch : {};
+              const changesWallpaper = patch.appearance && Object.hasOwn(patch.appearance, 'wallpaper');
+              const importToken = req?.wallpaperImportToken;
+              const supersededImport = changesWallpaper && importToken !== undefined && (
+                pendingWallpaperImport?.targetId !== target.id || pendingWallpaperImport?.token !== importToken
+              );
+              const writeOptions = changesWallpaper && importToken !== undefined && !supersededImport
+                ? { expectedWallpaperRevision: pendingWallpaperImport.revision }
+                : undefined;
+              if (changesWallpaper && !supersededImport) pendingWallpaperImport = null;
               void (async () => {
-                const writeRes =
-                  typeof bundleCtrl.updateUserConfig === 'function'
-                    ? bundleCtrl.updateUserConfig(patch)
-                    : { ok: false, error: 'updateUserConfig unavailable' };
-                if (writeRes.ok) {
-                  if (promptSuggester && typeof promptSuggester.syncState === 'function') {
-                    promptSuggester.syncState();
-                  }
-                  const { activeConfig } = bundleCtrl.getState();
-                  if (sshRemoteCtrl && typeof sshRemoteCtrl.syncState === 'function') {
-                    sshRemoteCtrl.syncState({
-                      enabled: Boolean(activeConfig.enabled && activeConfig.modules?.sshRemote),
-                      sshHosts: activeConfig.sshHosts
-                    });
-                  }
-                  if (!activeConfig.enabled) {
-                    targetThemeModes.clear();
-                  }
-                  for (const entry of attachedTargets.values()) {
-                    if (!entry.hostConfirmed) continue;
-                    try {
-                      if (entry.updateNewDocScript) await entry.updateNewDocScript();
-                      if (entry.inject) await entry.inject();
-                      if (entry.syncMetricsForSession) await entry.syncMetricsForSession(true);
-                    } catch {}
-                  }
-                }
+                const writeRes = supersededImport
+                  ? { ok: false, error: 'wallpaper_import_superseded' }
+                  : await saveSettingsPatch(patch, writeOptions);
                 const { activeConfig, cachedPatchVersion } = bundleCtrl.getState();
                 const agyStatus =
                   promptSuggester && typeof promptSuggester.getStatus === 'function'
@@ -1226,7 +1295,6 @@ export function createCdpManager({
           ws,
           send,
           updateNewDocScript,
-          inject,
           checkAndInject,
           syncMetricsForSession,
           endpoint,
@@ -1363,9 +1431,6 @@ export function createCdpManager({
             entry.parentId = page.parentId || entry.parentId || null;
             entry.updateTargetUrl?.(page.url);
             if (entry.hostConfirmed) {
-              if (bundleChanged && entry.updateNewDocScript) {
-                await entry.updateNewDocScript();
-              }
               if (shouldHeartbeatCheck && entry.checkAndInject) await entry.checkAndInject();
               if (entry.syncMetricsForSession) await entry.syncMetricsForSession(bundleChanged);
             }
@@ -1439,6 +1504,8 @@ export function createCdpManager({
     }
     attachedTargets.clear();
     targetThemeModes.clear();
+    pendingWallpaperImport = null;
+    flushPendingOpacityWrite();
   }
 
   function getNextSyncDelayMs() {
