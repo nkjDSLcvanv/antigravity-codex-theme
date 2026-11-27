@@ -11,6 +11,7 @@ export const BASE_SPARSE_PATHS = Object.freeze([
   '/user/custom.css',
   '/user/custom.js',
   '/core/daemon.mjs',
+  '/core/appearance.mjs',
   '/core/shared.mjs',
   '/core/manifest.json',
   '/core/installer',
@@ -27,18 +28,20 @@ export const BASE_SPARSE_PATHS = Object.freeze([
 export const FEATURE_GROUPS = Object.freeze({
   theme: {
     id: 'theme',
-    label: 'Codex 风格昼夜主题 (codex-pure-white / codex-dark)',
+    label: '昼夜主题预设、背景图片、自定义字体与输入框动效',
     configKeys: ['theme'],
     sparsePaths: [
       '/core/styles/00-base.css',
       '/core/styles/10-light-codex.css',
       '/core/styles/20-dark-codex.css',
+      '/core/styles/25-appearance.css',
       '/core/runtime/20-theme-sync.js'
     ],
     coreRelPaths: [
       'styles/00-base.css',
       'styles/10-light-codex.css',
       'styles/20-dark-codex.css',
+      'styles/25-appearance.css',
       'runtime/20-theme-sync.js'
     ],
     aliases: ['theme', 'codex', 'style', 'styles', 'css', 'dark', 'light']

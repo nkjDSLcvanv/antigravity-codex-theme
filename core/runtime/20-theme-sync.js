@@ -1,11 +1,12 @@
 /**
- * Part 20: Light/Dark Theme Mode Sync (Codex Pure White & Codex Dark)
+ * Part 20: Theme Mode Sync & Appearance Effects
  */
   const PRESETS = {
     CODEX_PURE_WHITE: 'codex-pure-white',
     CODEX_DARK: 'codex-dark'
   };
-  const ALL_CUSTOM_PRESET_NAMES = new Set([...Object.values(PRESETS), 'onyx-dark']);
+  const EXTRA_PRESETS = new Set(['claude', 'vscode', 'typora']);
+  const ALL_CUSTOM_PRESET_NAMES = new Set([...Object.values(PRESETS), ...EXTRA_PRESETS, 'onyx-dark']);
 
   if (window.__ag_theme_mode_observer) {
     try { window.__ag_theme_mode_observer.disconnect(); } catch (e) {}
@@ -68,7 +69,9 @@
       }
 
       const targetMode = isDark ? 'dark' : 'light';
-      const targetPreset = isDark ? PRESETS.CODEX_DARK : PRESETS.CODEX_PURE_WHITE;
+      const targetPreset = EXTRA_PRESETS.has(DEFAULT_PRESET)
+        ? DEFAULT_PRESET
+        : isDark ? PRESETS.CODEX_DARK : PRESETS.CODEX_PURE_WHITE;
 
       const prevPreset = document.documentElement.getAttribute('data-ag-preset');
       if (prevPreset !== targetPreset) {
@@ -106,7 +109,7 @@
   };
 
   if (MODULES.theme !== false) {
-    if (DEFAULT_PRESET && window.__ag_last_boot_preset !== DEFAULT_PRESET) {
+    if (!EXTRA_PRESETS.has(DEFAULT_PRESET) && window.__ag_last_boot_preset !== DEFAULT_PRESET) {
       window.__ag_last_boot_preset = DEFAULT_PRESET;
       try {
         Storage.prototype.setItem.call(localStorage, 'theme-color-flavor', DEFAULT_PRESET);
@@ -158,4 +161,24 @@
   }
 
   syncThemePreset();
+
+  if (MODULES.theme !== false) {
+    const root = document.documentElement;
+    const appearance = boot.userConfig?.appearance;
+    if (boot.wallpaper) {
+      root.style.setProperty('--ag-wallpaper-image', `url("${boot.wallpaper}")`);
+      root.style.setProperty('--ag-surface-opacity', `${appearance.surfaceOpacity}%`);
+      root.setAttribute('data-ag-wallpaper', '');
+      window.__ag_cleanup_fns.push(() => {
+        root.removeAttribute('data-ag-wallpaper');
+        root.style.removeProperty('--ag-wallpaper-image');
+        root.style.removeProperty('--ag-surface-opacity');
+      });
+    }
+    if (appearance?.composerMotion) {
+      root.setAttribute('data-ag-composer-motion', '');
+      window.__ag_cleanup_fns.push(() => root.removeAttribute('data-ag-composer-motion'));
+    }
+  }
+
   window.__ag_patch_version = PATCH_VERSION;

@@ -42,8 +42,8 @@
   --ag-s-dropdown-shadow: 0 20px 44px -6px rgba(0, 0, 0, 0.72), 0 4px 12px rgba(0, 0, 0, 0.42);
 }
 
-/* Codex Light palette — applied ONLY when Codex Theme module is enabled (html[data-ag-preset]) */
-html[data-ag-preset]:not([data-ag-theme-mode="dark"]):not(:has(> body.dark)) :is(#ag-settings-nav-wrap, #ag-settings-pane, #ag-settings-model-menu, #ag-settings-effort-menu, #ag-settings-font-menu) {
+/* Codex light settings palette. Other presets inherit their theme tokens. */
+html[data-ag-preset="codex-pure-white"] :is(#ag-settings-nav-wrap, #ag-settings-pane, #ag-settings-model-menu, #ag-settings-effort-menu, #ag-settings-font-menu) {
   --ag-s-bg: var(--background, #FFFFFF);
   --ag-s-sidebar: var(--sidebar, #F9F9F9);
   --ag-s-selected: var(--sidebar-secondary, #EFEFEF);
@@ -68,8 +68,8 @@ html[data-ag-preset]:not([data-ag-theme-mode="dark"]):not(:has(> body.dark)) :is
   --ag-s-badge-bg: #F3F4F6;
 }
 
-/* Codex Dark palette — applied ONLY when Codex Theme module is enabled */
-:is(html[data-ag-preset][data-ag-theme-mode="dark"] body, html[data-ag-preset].dark body, html[data-ag-preset] body.dark, html[data-ag-preset] body.theme-dark, html[data-ag-preset] body[data-agy-theme].dark) :is(#ag-settings-nav-wrap, #ag-settings-pane, #ag-settings-model-menu, #ag-settings-effort-menu, #ag-settings-font-menu) {
+/* Codex dark settings palette. */
+html[data-ag-preset="codex-dark"] :is(#ag-settings-nav-wrap, #ag-settings-pane, #ag-settings-model-menu, #ag-settings-effort-menu, #ag-settings-font-menu) {
   --ag-s-bg: var(--background, #181818);
   --ag-s-sidebar: var(--sidebar, #232323);
   --ag-s-selected: var(--sidebar-secondary, #353535);
@@ -352,6 +352,109 @@ html[data-ag-preset]:not([data-ag-theme-mode="dark"]):not(:has(> body.dark)) :is
   background-color: var(--ag-s-card);
   border: 1px solid var(--ag-s-border);
   overflow: visible;
+}
+
+#ag-settings-pane .ag-s-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(104px, 100%), 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+#ag-settings-pane .ag-s-preset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ag-s-border);
+  border-radius: 8px;
+  background-color: var(--ag-s-surface);
+  color: var(--ag-s-fg) !important;
+  font-family: var(--ag-s-font) !important;
+  font-size: 12px !important;
+  line-height: 18px;
+  text-align: start;
+  cursor: pointer;
+}
+
+#ag-settings-pane .ag-s-preset:hover,
+#ag-settings-pane .ag-s-preset[aria-pressed="true"] {
+  background-color: var(--ag-s-selected);
+}
+
+#ag-settings-pane .ag-s-preset[aria-pressed="true"] {
+  border-color: var(--ag-s-focus);
+}
+
+#ag-settings-pane :is(.ag-s-preset, .ag-s-opacity-control input):focus-visible {
+  outline: 2px solid var(--ag-s-focus);
+  outline-offset: 2px;
+}
+
+#ag-settings-pane .ag-s-preset-swatch {
+  flex: 0 0 19px;
+  height: 19px;
+  border-radius: 5px;
+  border: 1px solid var(--ag-s-border);
+  background: linear-gradient(135deg, var(--ag-s-swatch-light, #f9f9f9) 50%, var(--ag-s-swatch-dark, #232323) 50%);
+}
+
+#ag-settings-pane [data-theme-preset="claude"] {
+  --ag-s-swatch-light: #efe5d7;
+  --ag-s-swatch-dark: #49372d;
+}
+
+#ag-settings-pane [data-theme-preset="vscode"] {
+  --ag-s-swatch-light: #d6e3f6;
+  --ag-s-swatch-dark: #32445e;
+}
+
+#ag-settings-pane [data-theme-preset="typora"] {
+  --ag-s-swatch-light: #e9ede3;
+  --ag-s-swatch-dark: #394b3e;
+}
+
+#ag-settings-pane .ag-s-wallpaper-row {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+#ag-settings-pane .ag-s-wallpaper-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#ag-settings-pane .ag-s-wallpaper-opacity {
+  margin-top: 12px;
+}
+
+#ag-settings-pane .ag-s-opacity-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  width: min(280px, 100%);
+}
+
+#ag-settings-pane .ag-s-opacity-control input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--ag-s-primary);
+}
+
+#ag-settings-pane .ag-s-opacity-control output {
+  min-width: 4ch;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ag-s-fg-2);
+  text-align: end;
+}
+
+#ag-settings-pane .ag-s-appearance-error {
+  font-size: 12px;
+  color: var(--ag-s-err);
 }
 
 #ag-settings-pane .ag-s-row {

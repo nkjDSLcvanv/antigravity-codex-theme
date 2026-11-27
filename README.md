@@ -14,7 +14,7 @@
 </p>
 
 <p>
-  不修改安装包，通过本地 CDP 实时注入，覆盖 36 个独立模块与 124 项单元测试。<br>
+  不修改安装包，通过本地 CDP 实时注入，覆盖 38 个独立模块与 127 项单元测试。<br>
   支持 <code>--only</code> 按需安装、设置面板内一键检查更新与 <code>user/</code> 个人配置热重载。
 </p>
 
@@ -41,7 +41,7 @@ https://github.com/user-attachments/assets/e27c7621-b605-4fdf-9bc3-4fc12da85484
 
 | 模块 | 核心能力 | 默认状态 |
 | :--- | :--- | :--- |
-| **Codex 昼夜主题与自定义字体** | 纯白 (`codex-pure-white`) / 炭灰 (`codex-dark`) 自动随外观切换；纯本地扫描本机字体，支持全局或 UI / 对话信息 / 代码与审查三区独立生效 | 默认开启 |
+| **主题预设与自定义外观** | Codex、Claude、VS Code、Typora 风格预设随昼夜切换，支持本地壁纸、面板不透明度、会话输入框彩色边框和自定义字体 | 默认 Codex，壁纸与边框动效可选 |
 | **模型额度（面板 + 侧栏独立开关）** | Ink 昼夜双模式展示 `5h` / `7d` 剩余额度与具体重置时间，**统计面板底部与侧栏常驻显示可完全独立开关**，支持 **6 × 6** 样式组合、打开/聚焦/到期自动拉新、被动同步原生「查看用量」及点击手动刷新 | 默认开启 |
 | **原生设置面板与一键更新** | 嵌入 **设置 → Codex 主题**，可视化管理模块开关、额度样式、字体下拉、模型档位、`sshHosts`、手动刷新与面板内直接升级 | 默认内置 |
 | **会话状态与实时用量统计** | 底部四态圆点、一/二级用量面板与每轮悬浮详情卡；支持紧凑/详细动态换行、**分屏多对话独立统计**、旁路提问与可选 **SSH Remote** | 默认开启（SSH 可选） |
@@ -81,7 +81,7 @@ node install.mjs install --only i18n,metrics
 
 | 模块 | 说明 |
 | :--- | :--- |
-| `theme` | Codex 浅色 (`codex-pure-white`) 与深色 (`codex-dark`) 昼夜主题与自定义字体 |
+| `theme` | 昼夜主题预设、本地壁纸与面板不透明度、输入框动效和自定义字体 |
 | `i18n` | 中文界面、Swarm 看板与 Electron 原生右键菜单本地化（`2,100+` 条词条，`WeakMap` 原地更新） |
 | `metrics` | 实时会话四态指示、一/二级用量面板、每轮统计、分屏多对话支持与模型额度（含可选 SSH Remote） |
 | `fixes` | 设置弹窗路由死锁修复与 `Cmd/Ctrl + -/=/0` 缩放快捷键 |
@@ -127,6 +127,13 @@ node install.mjs install --only i18n,metrics
 - **手动刷新与面板内原地热更新**：标题旁提供手动刷新（`↻`），底部 **版本与更新** 卡片支持检查 Release / `main` 差异并一键升级，自动备份 `core.prev/`、保留 `user/` 并原地原子重启后台服务（兼容 macOS LaunchAgent / Linux systemd / Windows 计划任务，热重载自动收敛状态），无需重启应用。
 
 ![原生嵌入式 Codex 主题设置面板与二级模型选择器](assets/settings-panel.png)
+
+#### 主题、壁纸与输入框动效
+
+在 **设置 → Codex 主题 → 外观** 中选择 Codex、Claude、VS Code 或 Typora 风格配色。每套配色会跟随 Antigravity 的浅色和深色模式，Typora 预设使用衬线字体呈现对话正文。也可以在安装时用 `--preset claude`、`--preset vscode` 或 `--preset typora` 选择配色。
+
+- **背景图片**支持本地 PNG、JPEG 和 WebP（最大 3 MiB）。选择后可调整工作区和侧栏的面板不透明度（60%–100%，默认 85%），也可随时移除图片。图片保存在本地配置中。
+- **输入框彩色边框**默认关闭。开启后，空闲时每 18 秒循环一次，会话运行时加快至每 4 秒一次，各个分屏独立变化。系统开启减少动态效果时，边框保留静态渐变。
 
 ### 2. 模型额度显示（侧栏与统计面板底部）
 
@@ -204,7 +211,8 @@ node install.mjs install --only i18n,metrics
 <summary>展开：user/ 高级配置字段说明（config.json / custom.css / custom.js）</summary>
 
 - [user/config.json](user/config.json)
-  - `preset`：`"codex-pure-white"` 或 `"codex-dark"`
+  - `preset` 为 `"codex-pure-white"`（默认）、`"codex-dark"`（兼容旧配置）、`"claude"`、`"vscode"` 或 `"typora"`。
+  - `appearance` 包含 `wallpaper`（由设置页保存的图片 data URL，空字符串可移除）、`surfaceOpacity`（60–100，默认 85）和 `composerMotion`（默认 `false`）。
   - `themeVars`：覆盖 `--background`、`--sidebar`、`--primary`、`--ag-composer-*`、`--ag-dark-*` 等变量
   - `telemetryLayout`：`"compact"`（默认）或 `"detailed"`（均动态换行）
   - `telemetryCacheMode`：`"session"`（会话累计）或 `"step"`（单步）
@@ -219,7 +227,7 @@ node install.mjs install --only i18n,metrics
 </details>
 
 <details>
-<summary>展开：源码模块结构（core/ 36 模块与 124 项单元测试）与本地构建</summary>
+<summary>展开：源码模块结构（core/ 38 模块与 127 项单元测试）与本地构建</summary>
 
 | 定制方向 | 对应文件 |
 | :--- | :--- |
@@ -270,4 +278,4 @@ antigravity-codex-theme/
 
 ## English Overview
 
-`antigravity-codex-theme` brings Codex light & dark themes, custom local fonts (with pure-Node SFNT auto-discovery for global or split UI / Chat / Code scopes), Ink 5h/7d model quota display (independent toggles for panel footer and sidebar block, 6×6 mix-and-match styles, instant live refresh on open/focus/reset, passive native-usage sync & click-to-refresh), Chinese UI, Swarm Board & Electron native right-click context menu localization (`2,100+` in-place `WeakMap` entries with project/branch/group name guards and instant CDP target discovery), an embedded native **Settings → Codex Theme** panel with live self-updater, and multi-pane live session telemetry (dynamic width-adaptive wrapping for both `compact` and `detailed` modes, concurrent split-screen multi-conversation tracking, Side Question panes, opt-in read-only SSH Remote, and opt-in session-isolated Ghost Text prompt suggestions) to Google Antigravity (`2.30.x` – `2.35.2+`) without touching the application bundle. Built as 36 modules with 124 `node:test` unit tests (Node.js `>= 22.13.0`, macOS / Windows / Linux, MIT License).
+`antigravity-codex-theme` brings light and dark Codex, Claude, VS Code, and Typora-inspired palettes, local wallpaper, panel opacity, and an opt-in animated composer border to Google Antigravity (`2.30.x` – `2.35.2+`). Customize them under **Settings → Codex Theme → Appearance**. The plugin also provides custom local fonts (with pure-Node SFNT auto-discovery for global or split UI / Chat / Code scopes), Ink 5h/7d model quota display (independent toggles for panel footer and sidebar block, 6×6 mix-and-match styles, instant live refresh on open/focus/reset, passive native-usage sync & click-to-refresh), Chinese UI, Swarm Board & Electron native right-click context menu localization (`2,100+` in-place `WeakMap` entries with project/branch/group name guards and instant CDP target discovery), a live self-updater, and multi-pane live session telemetry (dynamic width-adaptive wrapping for both `compact` and `detailed` modes, concurrent split-screen multi-conversation tracking, Side Question panes, opt-in read-only SSH Remote, and opt-in session-isolated Ghost Text prompt suggestions). Built as 38 modules with 127 `node:test` unit tests (Node.js `>= 22.13.0`, macOS / Windows / Linux, MIT License).

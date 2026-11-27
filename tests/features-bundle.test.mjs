@@ -71,11 +71,17 @@ test('getSparseCheckoutPaths and getExcludedCoreRelPaths partition modules accur
   assert.ok(paths.includes('/core/styles/45-settings-ui.css'));
   assert.ok(paths.includes('/core/runtime/75-settings-ui.js'));
   assert.ok(paths.includes('/core/daemon/updater.mjs'));
+  assert.ok(paths.includes('/core/appearance.mjs'));
   assert.ok(!paths.includes('/core/styles/10-light-codex.css'));
+  assert.ok(!paths.includes('/core/styles/25-appearance.css'));
   assert.ok(!paths.includes('/core/runtime/50-telemetry-ui.js'));
+
+  const themePaths = getSparseCheckoutPaths(parseFeatureSelection({ onlyArg: 'theme' }).selected);
+  assert.ok(themePaths.includes('/core/styles/25-appearance.css'));
 
   const excluded = getExcludedCoreRelPaths(onlyI18n.selected);
   assert.ok(excluded.includes('styles/10-light-codex.css'));
+  assert.ok(excluded.includes('styles/25-appearance.css'));
   assert.ok(excluded.includes('runtime/50-telemetry-ui.js'));
   assert.ok(!excluded.includes('i18n.json'));
 });
@@ -233,6 +239,7 @@ test('core/daemon.mjs loads cleanly in a minimal sparse copy without metrics fil
     fs.mkdirSync(path.join(tmpDir, 'user'), { recursive: true });
     for (const rel of [
       'core/daemon.mjs',
+      'core/appearance.mjs',
       'core/shared.mjs',
       'core/daemon/paths.mjs',
       'core/daemon/cdp-bridge.mjs',

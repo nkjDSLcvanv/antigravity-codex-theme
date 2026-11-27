@@ -151,11 +151,18 @@
       let invalidHost = false;
       let refreshingModels = false;
       let refreshingAll = false;
+      let appearanceError = '';
+      let wallpaperImport = 0;
       let activeDlg = null;
       let activeSidebar = null;
       let boundSidebarClick = null;
 
       const bootUserCfg = boot.userConfig && typeof boot.userConfig === 'object' ? boot.userConfig : {};
+      const appearancePresets = [
+        ['codex-pure-white', 'Codex'], ['claude', 'Claude'], ['vscode', 'VS Code'], ['typora', 'Typora']
+      ];
+      const maxWallpaperBytes = boot.appearanceLimits?.maxWallpaperBytes || 3 * 1024 * 1024;
+      const minSurfaceOpacity = boot.appearanceLimits?.minSurfaceOpacity || 60;
       const normalizeLocalFonts = (raw) => {
         const src = raw && typeof raw === 'object' ? raw : {};
         return {
@@ -367,6 +374,8 @@
 
       const uiState = {
         config: {
+          preset: bootUserCfg.preset || DEFAULT_PRESET,
+          appearance: bootUserCfg.appearance || { wallpaperSet: false, surfaceOpacity: 85, composerMotion: false },
           telemetryLayout: bootUserCfg.telemetryLayout || boot.telemetryLayout || 'compact',
           telemetryCacheMode: bootUserCfg.telemetryCacheMode || boot.telemetryCacheMode || 'session',
           quotaStyle: bootUserCfg.quotaStyle || boot.quotaStyle || 'segments',
@@ -411,9 +420,22 @@
             feedbackLabel: '反馈',
             subtitlePrefix: '管理主题配色、中文界面、会话统计与可选增强模块，修改实时同步至 ',
             subtitleSuffix: '。',
+            secAppearance: '外观',
+            modTheme: '启用主题',
+            presetLabel: '配色预设',
+            presetDesc: '跟随 Antigravity 的浅色和深色模式',
+            wallpaperLabel: '背景图片',
+            wallpaperDesc: `选择本地 PNG、JPEG 或 WebP 图片（最多 ${maxWallpaperBytes / 1024 ** 2} MiB）`,
+            wallpaperChoose: '选择图片…',
+            wallpaperReplace: '更换图片…',
+            wallpaperRemove: '移除图片',
+            wallpaperInvalid: '请选择有效且在大小限制内的 PNG、JPEG 或 WebP 图片。',
+            surfaceOpacityLabel: '面板不透明度',
+            surfaceOpacityDesc: '降低不透明度，让背景透过工作区和侧栏。',
+            composerMotionLabel: '输入框彩色边框',
+            composerMotionDesc: '空闲时缓慢流动，会话运行时加快。',
+            appearanceSaveError: '外观设置保存失败，请重试。',
             secCore: '核心模块',
-            modTheme: 'Codex 昼夜主题',
-            modThemeDesc: '浅色纯白与中性炭灰深色配色，随 IDE 外观自动切换',
             modI18n: '中文界面汉化',
             modI18nDesc: '内置 2,000+ 界面与原生右键菜单词条，原地更新不影响交互，关闭即恢复英文',
             modMetrics: '实时会话状态与用量统计',
@@ -520,9 +542,22 @@
           feedbackLabel: 'Feedback',
           subtitlePrefix: 'Manage theme colors, localization, live telemetry, and opt-in modules. Changes sync directly to ',
           subtitleSuffix: '.',
+          secAppearance: 'Appearance',
+          modTheme: 'Enable theme',
+          presetLabel: 'Theme preset',
+          presetDesc: 'Follows Antigravity’s light and dark modes',
+          wallpaperLabel: 'Background image',
+          wallpaperDesc: `Choose a local PNG, JPEG, or WebP image (up to ${maxWallpaperBytes / 1024 ** 2} MiB)`,
+          wallpaperChoose: 'Choose image…',
+          wallpaperReplace: 'Replace image…',
+          wallpaperRemove: 'Remove image',
+          wallpaperInvalid: 'Choose a valid PNG, JPEG, or WebP image within the size limit.',
+          surfaceOpacityLabel: 'Panel opacity',
+          surfaceOpacityDesc: 'Lower opacity to reveal the image behind the workspace and sidebar.',
+          composerMotionLabel: 'Animated composer border',
+          composerMotionDesc: 'Flows slowly at rest and speeds up while the session is working.',
+          appearanceSaveError: 'Could not save appearance settings. Try again.',
           secCore: 'Core Modules',
-          modTheme: 'Codex Light & Dark Theme',
-          modThemeDesc: 'Pure white light and charcoal dark palettes that follow IDE appearance automatically',
           modI18n: 'Chinese UI Localization',
           modI18nDesc: '2,000+ built-in UI & native context menu entries applied in place; disable to restore English immediately',
           modMetrics: 'Live Session Status & Telemetry',
@@ -690,6 +725,8 @@
         if (!res || !res.ok) return;
         if (res.config) {
           uiState.config = {
+            preset: res.config.preset || uiState.config.preset,
+            appearance: res.config.appearance || uiState.config.appearance,
             telemetryLayout: res.config.telemetryLayout || uiState.config.telemetryLayout,
             telemetryCacheMode: res.config.telemetryCacheMode || uiState.config.telemetryCacheMode,
             quotaStyle: res.config.quotaStyle || uiState.config.quotaStyle,
@@ -873,6 +910,43 @@
         }
         window.__ag_settings_update_cache = Object.assign({}, uiState.update);
         renderPane();
+      }
+
+      async function commitAppearancePatch(patch) {
+        appearanceError = '';
+        const res = await callDaemonBinding('__agUpdateSettings', { patch });
+        if (disposed) return;
+        if (res?.ok) {
+          applyRemoteState(res, true);
+        } else {
+          appearanceError = 'appearanceSaveError';
+          renderPane();
+        }
+      }
+
+      async function importWallpaper(file) {
+        if (!file) return;
+        const importId = ++wallpaperImport;
+        let wallpaper;
+        try {
+          if (file.size > maxWallpaperBytes || !/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error();
+          wallpaper = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reader.onabort = reject;
+            reader.readAsDataURL(file);
+          });
+          const image = new Image();
+          image.src = wallpaper;
+          await image.decode();
+        } catch {
+          if (!disposed && importId === wallpaperImport) {
+            appearanceError = 'wallpaperInvalid';
+            renderPane();
+          }
+          return;
+        }
+        if (!disposed && importId === wallpaperImport) await commitAppearancePatch({ appearance: { wallpaper } });
       }
 
       async function commitPatch(patch) {
@@ -1697,6 +1771,67 @@
         }
       }
 
+      function renderAppearanceSection(cfg, s) {
+        const enabled = cfg.modules.theme !== false;
+        const appearance = cfg.appearance;
+        const preset = cfg.preset === 'codex-dark' ? 'codex-pure-white' : cfg.preset;
+        const choices = appearancePresets.map(([id, name]) => `
+          <button type="button" id="ag-s-appearance-${id}" class="ag-s-preset" data-theme-preset="${id}" aria-pressed="${preset === id}">
+            <span class="ag-s-preset-swatch" aria-hidden="true"></span>${name}
+          </button>`).join('');
+
+        return `<div>
+          <div class="ag-s-section-head"><span class="ag-s-section-title">${escHtml(s.secAppearance)}</span></div>
+          <div class="ag-s-card">
+            <div class="ag-s-row"><div class="ag-s-row-main">
+              <label class="ag-s-row-label" for="ag-s-sw-theme">${escHtml(s.modTheme)}</label>
+              <input id="ag-s-sw-theme" type="checkbox" switch role="switch" class="ag-s-switch" data-bind-mod="theme" ${enabled ? 'checked' : ''} />
+            </div></div>
+            ${enabled ? `
+              <div class="ag-s-row">
+                <div class="ag-s-row-label" id="ag-s-presets-label">${escHtml(s.presetLabel)}</div>
+                <div class="ag-s-row-desc">${escHtml(s.presetDesc)}</div>
+                <div class="ag-s-presets" role="group" aria-labelledby="ag-s-presets-label">${choices}</div>
+              </div>
+              <div class="ag-s-row">
+                <div class="ag-s-row-main ag-s-wallpaper-row">
+                  <div class="ag-s-row-info">
+                    <div class="ag-s-row-label">${escHtml(s.wallpaperLabel)}</div>
+                    <div class="ag-s-row-desc" id="ag-s-wallpaper-hint">${escHtml(s.wallpaperDesc)}</div>
+                  </div>
+                  <div class="ag-s-wallpaper-actions">
+                    <input id="ag-s-appearance-wallpaper-file" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+                    <button type="button" id="ag-s-appearance-wallpaper-choose" class="ag-s-btn-secondary" aria-describedby="ag-s-wallpaper-hint">${escHtml(appearance.wallpaperSet ? s.wallpaperReplace : s.wallpaperChoose)}</button>
+                    ${appearance.wallpaperSet ? `<button type="button" id="ag-s-appearance-wallpaper-remove" class="ag-s-btn-secondary">${escHtml(s.wallpaperRemove)}</button>` : ''}
+                  </div>
+                </div>
+                ${appearance.wallpaperSet ? `<div class="ag-s-wallpaper-opacity">
+                  <label class="ag-s-row-label" for="ag-s-appearance-opacity">${escHtml(s.surfaceOpacityLabel)}</label>
+                  <div class="ag-s-row-desc" id="ag-s-opacity-hint">${escHtml(s.surfaceOpacityDesc)}</div>
+                  <div class="ag-s-opacity-control">
+                    <input id="ag-s-appearance-opacity" type="range" min="${minSurfaceOpacity}" max="100" value="${appearance.surfaceOpacity}" aria-describedby="ag-s-opacity-hint" aria-valuetext="${appearance.surfaceOpacity}%" />
+                    <output for="ag-s-appearance-opacity" aria-hidden="true">${appearance.surfaceOpacity}%</output>
+                  </div>
+                </div>` : ''}
+              </div>
+              <div class="ag-s-row"><div class="ag-s-row-main">
+                <div class="ag-s-row-info">
+                  <label class="ag-s-row-label" for="ag-s-appearance-motion">${escHtml(s.composerMotionLabel)}</label>
+                  <div class="ag-s-row-desc" id="ag-s-motion-hint">${escHtml(s.composerMotionDesc)}</div>
+                </div>
+                <input id="ag-s-appearance-motion" type="checkbox" switch role="switch" class="ag-s-switch" aria-describedby="ag-s-motion-hint" ${appearance.composerMotion ? 'checked' : ''} />
+              </div></div>
+              ${appearanceError ? `<div class="ag-s-row ag-s-appearance-error" role="alert">${escHtml(s[appearanceError])}</div>` : ''}
+            ` : ''}
+          </div>
+        </div>`;
+      }
+
+      function getAppearanceFocus() {
+        const id = document.activeElement?.id;
+        return id === 'ag-s-sw-theme' || id?.startsWith('ag-s-appearance-') ? id : '';
+      }
+
       function renderPane() {
         const navBtn = document.getElementById('ag-settings-nav-btn');
         const s = getStrings();
@@ -1909,6 +2044,8 @@
         }
 
         const prevScroll = pane.scrollTop || window.__ag_settings_scroll_top || 0;
+        const appearanceFocus = getAppearanceFocus() || window.__ag_settings_appearance_focus;
+        window.__ag_settings_appearance_focus = '';
 
         const chipsHtml =
           (cfg.sshHosts || [])
@@ -1985,24 +2122,13 @@
           '</p>' +
           '</div>' +
           '<div class="ag-s-sections">' +
+          renderAppearanceSection(cfg, s) +
           // Group 1: Core Modules
           '<div>' +
           '<div class="ag-s-section-head"><span class="ag-s-section-title">' +
           escHtml(s.secCore) +
           '</span></div>' +
           '<div class="ag-s-card">' +
-          '<div class="ag-s-row"><div class="ag-s-row-main">' +
-          '<div class="ag-s-row-info"><label class="ag-s-row-label" for="ag-s-sw-theme">' +
-          escHtml(s.modTheme) +
-          '</label><div class="ag-s-row-desc">' +
-          escHtml(s.modThemeDesc) +
-          '</div></div>' +
-          '<input id="ag-s-sw-theme" type="checkbox" switch role="switch" class="ag-s-switch" data-bind-mod="theme" aria-label="' +
-          escHtml(s.modTheme) +
-          '" ' +
-          (mods.theme !== false ? 'checked' : '') +
-          ' />' +
-          '</div></div>' +
           '<div class="ag-s-row"><div class="ag-s-row-main">' +
           '<div class="ag-s-row-info"><label class="ag-s-row-label" for="ag-s-sw-i18n">' +
           escHtml(s.modI18n) +
@@ -2405,6 +2531,9 @@
           '</div>';
 
         if (prevScroll > 0) pane.scrollTop = prevScroll;
+        if (appearanceFocus && window.__ag_settings_tab_open) {
+          (document.getElementById(appearanceFocus) || document.getElementById('ag-s-appearance-wallpaper-choose'))?.focus({ preventScroll: true });
+        }
 
         if (addingHost) {
           const inp = document.getElementById('ag-s-host-input');
@@ -2497,7 +2626,30 @@
           { passive: true }
         );
 
+        pane.addEventListener('input', (ev) => {
+          const control = ev.target;
+          if (control?.id !== 'ag-s-appearance-opacity') return;
+          const label = `${control.value}%`;
+          control.setAttribute('aria-valuetext', label);
+          pane.querySelector('output[for="ag-s-appearance-opacity"]').value = label;
+        });
+
         pane.addEventListener('change', (ev) => {
+          const control = ev.target;
+          if (control?.id === 'ag-s-appearance-wallpaper-file') {
+            const file = control.files?.[0];
+            control.value = '';
+            importWallpaper(file);
+            return;
+          }
+          if (control?.id === 'ag-s-appearance-opacity') {
+            commitAppearancePatch({ appearance: { surfaceOpacity: control.valueAsNumber } });
+            return;
+          }
+          if (control?.id === 'ag-s-appearance-motion') {
+            commitAppearancePatch({ appearance: { composerMotion: control.checked } });
+            return;
+          }
           const sw = ev.target && ev.target.closest ? ev.target.closest('input.ag-s-switch[data-bind-mod]') : null;
           if (!sw) return;
           const mod = sw.getAttribute('data-bind-mod');
@@ -2510,6 +2662,18 @@
         });
 
         pane.addEventListener('click', (ev) => {
+          const appearanceAction = ev.target?.closest?.('[data-theme-preset], #ag-s-appearance-wallpaper-choose, #ag-s-appearance-wallpaper-remove');
+          if (appearanceAction) {
+            if (appearanceAction.id === 'ag-s-appearance-wallpaper-choose') {
+              document.getElementById('ag-s-appearance-wallpaper-file')?.click();
+            } else if (appearanceAction.id === 'ag-s-appearance-wallpaper-remove') {
+              wallpaperImport += 1;
+              commitAppearancePatch({ appearance: { wallpaper: '' } });
+            } else if (appearanceAction.getAttribute('aria-pressed') !== 'true') {
+              commitAppearancePatch({ preset: appearanceAction.dataset.themePreset });
+            }
+            return;
+          }
           const manualRef = ev.target && ev.target.closest ? ev.target.closest('#ag-s-manual-refresh') : null;
           if (manualRef) {
             ev.preventDefault();
@@ -2769,9 +2933,9 @@
         }
 
         if (justMounted) {
+          if (window.__ag_settings_tab_open) activeDlg.setAttribute('data-ag-codex-settings-open', '1');
           renderPane();
           if (window.__ag_settings_tab_open) {
-            activeDlg.setAttribute('data-ag-codex-settings-open', '1');
             fetchSettingsState({
               includeModels: !window.__ag_settings_models_cache,
               refreshModels: false
@@ -2896,6 +3060,7 @@
             document.getElementById('ag-settings-font-menu')
           ];
           oldPopovers.forEach((el) => { if (el) el.remove(); });
+          window.__ag_settings_appearance_focus = getAppearanceFocus();
           // Preserve nav & pane nodes across hot-reloads only if modal is closed? Remove cleanly so new bundle re-mounts fresh with preserved __ag_settings_tab_open!
           cleanupCodexSettingsDom();
           try { delete window.__ag_on_settings_state; } catch { window.__ag_on_settings_state = null; }

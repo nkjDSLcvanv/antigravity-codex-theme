@@ -2,6 +2,11 @@
   "enabled": true,
   "channel": "auto",
   "preset": "codex-pure-white",
+  "appearance": {
+    "wallpaper": "",
+    "surfaceOpacity": 85,
+    "composerMotion": false
+  },
   "telemetryLayout": "compact",
   "telemetryCacheMode": "session",
   "quotaStyle": "segments",

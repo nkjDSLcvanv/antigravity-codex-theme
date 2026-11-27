@@ -1,0 +1,126 @@
+/* Palettes vary the existing Antigravity surfaces and accents in each color mode. */
+html[data-ag-preset="claude"] {
+  --ag-palette-background: #faf5ec;
+  --ag-palette-sidebar: #efe5d7;
+  --ag-palette-selected: #e4d5c3;
+  --ag-palette-card: #fffbf4;
+  --ag-palette-text: #302821;
+  --ag-palette-muted: #6f5d50;
+  --ag-palette-accent: #a04c36;
+  --ag-palette-link: #90402e;
+}
+
+html[data-ag-preset="claude"][data-ag-theme-mode="dark"] {
+  --ag-palette-background: #241e1b;
+  --ag-palette-sidebar: #302721;
+  --ag-palette-selected: #49372d;
+  --ag-palette-card: #3a2f29;
+  --ag-palette-text: #f4e7db;
+  --ag-palette-muted: #c1a992;
+  --ag-palette-accent: #a34e38;
+  --ag-palette-link: #f3a58b;
+}
+
+html[data-ag-preset="vscode"] {
+  --ag-palette-background: #f5f8fe;
+  --ag-palette-sidebar: #e6edf7;
+  --ag-palette-selected: #d6e3f6;
+  --ag-palette-card: #ffffff;
+  --ag-palette-text: #263349;
+  --ag-palette-muted: #506581;
+  --ag-palette-accent: #245ca3;
+  --ag-palette-link: #205794;
+}
+
+html[data-ag-preset="vscode"][data-ag-theme-mode="dark"] {
+  --ag-palette-background: #1b2230;
+  --ag-palette-sidebar: #232d40;
+  --ag-palette-selected: #32445e;
+  --ag-palette-card: #2a364a;
+  --ag-palette-text: #e2ebf7;
+  --ag-palette-muted: #a6bbd5;
+  --ag-palette-accent: #285fb0;
+  --ag-palette-link: #8ec1fa;
+}
+
+html[data-ag-preset="typora"] {
+  --ag-palette-background: #f6f6ee;
+  --ag-palette-sidebar: #e9ede3;
+  --ag-palette-selected: #dce5d8;
+  --ag-palette-card: #fdfdf6;
+  --ag-palette-text: #29342c;
+  --ag-palette-muted: #586855;
+  --ag-palette-accent: #41694f;
+  --ag-palette-link: #355d43;
+  --ag-chat-font: Georgia, 'Songti SC', SimSun, ui-serif, serif;
+}
+
+html[data-ag-preset="typora"][data-ag-theme-mode="dark"] {
+  --ag-palette-background: #222a24;
+  --ag-palette-sidebar: #2b352e;
+  --ag-palette-selected: #394b3e;
+  --ag-palette-card: #303c34;
+  --ag-palette-text: #ecf0e5;
+  --ag-palette-muted: #b1c3b1;
+  --ag-palette-accent: #416b50;
+  --ag-palette-link: #a9d1a7;
+}
+
+html:is([data-ag-preset="claude"], [data-ag-preset="vscode"], [data-ag-preset="typora"]) body {
+  --link: var(--ag-palette-link) !important;
+  --vscode-editor-background: var(--background) !important;
+  --vscode-editor-foreground: var(--foreground) !important;
+  --ag-palette-accent-hover: color-mix(in srgb, var(--ag-palette-accent) 94%, white);
+}
+
+/* Tint the image at each panel so text, editors and popovers retain their own opacity. */
+html[data-ag-wallpaper] :is(body, [data-main-content-body], [data-side-panel-body], .bg-sidebar):where(
+  :not([data-has-browser-hole="true"], [data-has-browser-hole="true"] *, :has([data-has-browser-hole="true"]))
+) {
+  --ag-wallpaper-tint: color-mix(in srgb, var(--background) var(--ag-surface-opacity), transparent);
+  background-image: linear-gradient(var(--ag-wallpaper-tint), var(--ag-wallpaper-tint)), var(--ag-wallpaper-image) !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+}
+
+html[data-ag-wallpaper] .bg-sidebar {
+  --ag-wallpaper-tint: color-mix(in srgb, var(--sidebar) var(--ag-surface-opacity), transparent) !important;
+}
+
+/* Scope the stop control to its own composer, including split panes and side questions. */
+html[data-ag-composer-motion] :is(.surface-composer, [id="antigravity.agentSidePanelInputBox"]):not(:has(.surface-composer)):has([data-lexical-editor="true"])::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 2px;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: linear-gradient(90deg, #6999e6, #ae86cb, #e89e91, #dcbd76, #70bcaa, #6999e6);
+  background-size: 60% 100%;
+  background-repeat: repeat-x;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: ag-composer-flow var(--ag-composer-flow-period, 18s) linear infinite;
+  opacity: 0.75;
+}
+
+html[data-ag-composer-motion] :is(.surface-composer, [id="antigravity.agentSidePanelInputBox"]):not(:has(.surface-composer)):has([data-lexical-editor="true"]):has(
+  :is([data-testid="input-cancel-button"], [data-tooltip-id="input-send-button-cancel-tooltip"], button[aria-label^="Cancel ("], button[aria-label^="取消生成"]):not([hidden], [disabled], [aria-hidden="true"], [aria-disabled="true"])
+)::after {
+  --ag-composer-flow-period: 4s;
+  opacity: 1;
+}
+
+/* 60% background tiles repeat every 150% of the remaining positioning space. */
+@keyframes ag-composer-flow {
+  to { background-position: 150% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-ag-composer-motion] :is(.surface-composer, [id="antigravity.agentSidePanelInputBox"]):not(:has(.surface-composer)):has([data-lexical-editor="true"])::after {
+    animation: none;
+  }
+}

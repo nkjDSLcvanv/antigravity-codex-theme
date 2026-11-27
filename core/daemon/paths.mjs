@@ -7,6 +7,14 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_ALLOWED_ORIGINS, extractJsoncNumberProperty, stripUtf8Bom } from '../shared.mjs';
+import {
+  DEFAULT_APPEARANCE,
+  DEFAULT_PRESET,
+  MAX_WALLPAPER_BYTES,
+  MIN_SURFACE_OPACITY,
+  normalizeAppearanceConfig,
+  normalizeThemePreset
+} from '../appearance.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -206,6 +214,15 @@ export function sanitizeConfigPatch(currentCfg, patch) {
     base.modules = nextModules;
   }
 
+  const preset = normalizeThemePreset(patch.preset, null);
+  if (preset) base.preset = preset;
+  if (patch.appearance && typeof patch.appearance === 'object') {
+    base.appearance = normalizeAppearanceConfig(patch.appearance, {
+      strictWallpaper: true,
+      previous: normalizeAppearanceConfig(base.appearance)
+    });
+  }
+
   if (patch.telemetryLayout === 'compact' || patch.telemetryLayout === 'detailed') {
     base.telemetryLayout = patch.telemetryLayout;
   }
@@ -267,7 +284,12 @@ export function createBundleController({
   let activeConfig = {
     enabled: true,
     channel: 'auto',
-    preset: 'codex-pure-white',
+    preset: DEFAULT_PRESET,
+    appearance: {
+      wallpaperSet: false,
+      surfaceOpacity: DEFAULT_APPEARANCE.surfaceOpacity,
+      composerMotion: DEFAULT_APPEARANCE.composerMotion
+    },
     telemetryLayout: 'compact',
     telemetryCacheMode: 'session',
     quotaStyle: 'segments',
@@ -325,8 +347,9 @@ export function createBundleController({
     const userCfg = safeMode ? {} : readJsonSafe(path.join(USER_DIR, 'config.json'), {});
     const enabled = safeMode ? true : userCfg.enabled !== false;
     const channel = cliChannel || userCfg.channel || 'auto';
-    const presetRaw = String(userCfg.preset || 'codex-pure-white').trim();
-    const preset = presetRaw === 'codex-dark' || presetRaw === 'onyx-dark' ? 'codex-dark' : 'codex-pure-white';
+    const preset = normalizeThemePreset(userCfg.preset);
+    const { wallpaper, ...appearanceOptions } = normalizeAppearanceConfig(userCfg.appearance);
+    const appearance = { ...appearanceOptions, wallpaperSet: Boolean(wallpaper) };
     const telemetryLayout = userCfg.telemetryLayout === 'detailed' ? 'detailed' : 'compact';
     const telemetryCacheMode = userCfg.telemetryCacheMode === 'step' ? 'step' : 'session';
     const quotaStyle = VALID_QUOTA_STYLES.has(userCfg.quotaStyle) ? userCfg.quotaStyle : 'segments';
@@ -427,6 +450,7 @@ export function createBundleController({
       enabled,
       channel,
       preset,
+      appearance,
       telemetryLayout,
       telemetryCacheMode,
       quotaStyle,
@@ -497,9 +521,11 @@ export function createBundleController({
       .update(customCss)
       .update(JSON.stringify(mergedDict))
       .update(customJs)
+      .update(wallpaper)
       .update(
         JSON.stringify({
           preset,
+          appearance,
           telemetryLayout,
           telemetryCacheMode,
           quotaStyle,
@@ -525,6 +551,8 @@ export function createBundleController({
       platform: process.platform,
       enabled,
       preset,
+      wallpaper: enabled && modules.theme !== false ? wallpaper : '',
+      appearanceLimits: { maxWallpaperBytes: MAX_WALLPAPER_BYTES, minSurfaceOpacity: MIN_SURFACE_OPACITY },
       telemetryLayout,
       telemetryCacheMode,
       quotaStyle,
@@ -540,6 +568,7 @@ export function createBundleController({
         enabled,
         channel,
         preset,
+        appearance,
         telemetryLayout,
         telemetryCacheMode,
         quotaStyle,

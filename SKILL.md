@@ -30,7 +30,7 @@ Users can install all features or only the modules they request:
 
 | Feature ID | Config Keys | Purpose |
 | :--- | :--- | :--- |
-| `theme` | `modules.theme` | Codex pure-white light & charcoal-dark themes (`00-base.css`, `10-light-codex.css`, `20-dark-codex.css`, `20-theme-sync.js`, including Swarm iframe sync) |
+| `theme` | `modules.theme` | Codex, Claude, VS Code and Typora-inspired palettes, local wallpaper and panel opacity, composer border animation, and custom fonts |
 | `i18n` | `modules.i18n` | 2,000+ Chinese UI & Electron native right-click context menu localization entries (`core/i18n.json`, `60-i18n-engine.js`, preserving English model names & project/branch/group names) |
 | `metrics` | `modules.metrics`, `modules.quota`, `modules.quotaSidebar`, `modules.sshRemote` | 4-state session status indicator (`会话状态`), L1/L2 expandable usage panels, Ink 5h/7d model quota display with live refresh & passive sync, split-screen multi-conversation stats, Side Question pane, and opt-in in-memory SSH Remote telemetry via `sshHosts` |
 | `fixes` | `modules.deadlockHealer`, `modules.zoomShortcuts` | Settings modal router deadlock fix & `Cmd/Ctrl + -/=/0` zoom shortcuts (`10-guards.js`) |
@@ -81,7 +81,7 @@ Verify in JSON output:
 - `ok === true` (returns `false` with `remediation` when `cdpStatus === "missing_opt_in_flag"`)
 - `node.tier` shows `FULL (>= 22.13.0, ...)`
 - `coreIntegrity.clean === true`
-- `liveWindow.reachable === true` and `liveWindow.state.hasStyle === true` (`#ag-codex-theme`); when `theme` is enabled, `preset` is `"codex-pure-white"` or `"codex-dark"`; when `i18n` is enabled, `dictCount >= 1800`; when `metrics` is enabled in an active chat, `pillMounted === true`
+- `liveWindow.reachable === true` and `liveWindow.state.hasStyle === true` (`#ag-codex-theme`). With `theme` enabled, `preset` matches the selected palette and resolves to `"codex-pure-white"` or `"codex-dark"` for Codex. With `i18n` enabled, `dictCount >= 1800`. With `metrics` enabled in an active chat, `pillMounted === true`.
 
 ### Safe-Mode Troubleshooting
 ```bash
@@ -91,6 +91,7 @@ If `--safe-mode` works cleanly, inspect `~/.gemini/antigravity/codex-theme/user/
 
 ### Configuration Tweaks (Embedded Settings UI or Hot-Reloaded `user/config.json`)
 Users can toggle modules, pick prompt-suggestion models, edit `sshHosts`, trigger manual reload, and check/apply plugin updates visually inside Antigravity under **Settings → Codex Theme** (`设置 → Codex 主题`), or edit `~/.gemini/antigravity/codex-theme/user/config.json`:
+- **Customize appearance** under **Settings → Codex Theme → Appearance**. Select a palette, choose a local PNG/JPEG/WebP wallpaper (up to 3 MiB), set the panel opacity, or turn on the animated composer border. Set `preset` to `"claude"`, `"vscode"`, `"typora"`, or `"codex-pure-white"` for Codex when editing the config directly.
 - **Toggle individual modules**: `"modules": { "theme": true, "i18n": true, "metrics": true, "sshRemote": false, "promptSuggestions": false, "deadlockHealer": true, "zoomShortcuts": true, "cdpAutoRelaunch": true }`
 - **Enable opt-in prompt suggestions** (zero overhead / no `agy` process when disabled): set `"modules": { "promptSuggestions": true }` (optional `"promptSuggestionModel": "gemini-3.8-flash-low"`)
 - **Enable opt-in SSH Remote telemetry** (reads remote SQLite via read-only `python3` over `ssh`, strips all conversation text remotely, zero local `.db` copy): set `"modules": { "sshRemote": true }` and `"sshHosts": ["your-ssh-host"]`

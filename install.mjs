@@ -3,7 +3,7 @@
  * antigravity-codex-theme · Cross-Platform Installer, Relaunch, Doctor, Verify & Rollback CLI
  *
  * Subcommands:
- *   node install.mjs install      [--channel auto|stable|insiders] [--preset codex-pure-white|codex-dark] [--only <features>] [--without <features>] [--minimal] [--with-launcher] [--target-dir <dir>] [--sync-user]
+ *   node install.mjs install      [--channel auto|stable|insiders] [--preset <name>] [--only <features>] [--without <features>] [--minimal] [--with-launcher] [--target-dir <dir>] [--sync-user]
  *   node install.mjs relaunch     [--channel auto|stable|insiders] [--force] [--target-dir <dir>]
  *   node install.mjs doctor       [--channel auto|stable|insiders] [--target-dir <dir>]
  *   node install.mjs verify       [--safe-mode] [--channel auto|stable|insiders] [--target-dir <dir>]
@@ -19,6 +19,7 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { findRunningDaemonPids, stripUtf8Bom } from './core/shared.mjs';
+import { normalizeThemePreset, THEME_PRESETS } from './core/appearance.mjs';
 import { sha256File, buildManifest, verifyCoreIntegrity, buildDistZip } from './core/installer/manifest.mjs';
 import { detectEnvironment, ensureArgvRemoteDebugging, inspectLiveWindow } from './core/installer/env.mjs';
 import {
@@ -238,11 +239,7 @@ async function runInstall() {
   } else if (!currentCfg.channel) {
     currentCfg.channel = 'auto';
   }
-  if (presetArg) {
-    currentCfg.preset = presetArg === 'codex-dark' || presetArg === 'onyx-dark' ? 'codex-dark' : 'codex-pure-white';
-  } else if (currentCfg.preset !== 'codex-pure-white' && currentCfg.preset !== 'codex-dark') {
-    currentCfg.preset = currentCfg.preset === 'onyx-dark' ? 'codex-dark' : 'codex-pure-white';
-  }
+  currentCfg.preset = normalizeThemePreset(presetArg || currentCfg.preset);
   if (!currentCfg.telemetryLayout) currentCfg.telemetryLayout = 'compact';
   if (!currentCfg.telemetryCacheMode) currentCfg.telemetryCacheMode = 'session';
   if (!['segments', 'bar', 'rings', 'gauge', 'dots', 'compact'].includes(currentCfg.quotaStyle)) {
@@ -581,7 +578,7 @@ switch (subcommand) {
   }
   default:
     console.log(`antigravity-codex-theme CLI Usage:
-  node install.mjs install        [--channel auto|stable|insiders] [--preset codex-pure-white|codex-dark] [--only theme,i18n,metrics,fixes,suggest] [--without <list>] [--minimal] [--with-launcher] [--sync-user]
+  node install.mjs install        [--channel auto|stable|insiders] [--preset ${THEME_PRESETS.join('|')}] [--only theme,i18n,metrics,fixes,suggest] [--without <list>] [--minimal] [--with-launcher] [--sync-user]
   node install.mjs update         [--check] [--ref <branch|tag>]
   node install.mjs relaunch       [--channel auto|stable|insiders] [--force]
   node install.mjs doctor         [--channel auto|stable|insiders]
