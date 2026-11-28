@@ -317,7 +317,9 @@ export function createBundleController({ safeMode = false, cliChannel = null, ha
     const enabled = safeMode ? true : userCfg.enabled !== false;
     const channel = cliChannel || userCfg.channel || 'auto';
     const presetRaw = String(userCfg.preset || 'codex-pure-white').trim();
-    const preset = presetRaw === 'codex-dark' || presetRaw === 'onyx-dark' ? 'codex-dark' : 'codex-pure-white';
+    let preset = 'codex-pure-white';
+    if (presetRaw === 'codex-dark' || presetRaw === 'onyx-dark') preset = 'codex-dark';
+    else if (presetRaw === 'codex-morandi' || presetRaw === 'morandi') preset = 'codex-morandi';
     const telemetryLayout = userCfg.telemetryLayout === 'detailed' ? 'detailed' : 'compact';
     const telemetryCacheMode = userCfg.telemetryCacheMode === 'step' ? 'step' : 'session';
     const quotaStyle = VALID_QUOTA_STYLES.has(userCfg.quotaStyle) ? userCfg.quotaStyle : 'segments';

@@ -41,7 +41,7 @@ https://github.com/user-attachments/assets/e27c7621-b605-4fdf-9bc3-4fc12da85484
 
 | 模块 | 核心能力 | 默认状态 |
 | :--- | :--- | :--- |
-| **Codex 昼夜主题与自定义字体** | 纯白 (`codex-pure-white`) / 炭灰 (`codex-dark`) 自动随外观切换；纯本地扫描本机字体，支持全局或 UI / 对话信息 / 代码与审查三区独立生效 | 默认开启 |
+| **Codex / 莫兰迪 昼夜主题与自定义字体** | 纯白 (`codex-pure-white`) / 炭灰 (`codex-dark`) 自动随外观切换，另内置「莫兰迪·陶土」(`codex-morandi`，浅色暖纸灰 + 暖炭莫兰迪深色)；纯本地扫描本机字体，支持全局或 UI / 对话信息 / 代码与审查三区独立生效 | 默认开启 |
 | **模型额度（面板 + 侧栏独立开关）** | Ink 昼夜双模式展示 `5h` / `7d` 剩余额度与具体重置时间，**统计面板底部与侧栏常驻显示可完全独立开关**，支持 **6 × 6** 样式组合、打开/聚焦/到期自动拉新、被动同步原生「查看用量」及点击手动刷新 | 默认开启 |
 | **原生设置面板与一键更新** | 嵌入 **设置 → Codex 主题**，可视化管理模块开关、额度样式、字体下拉、模型档位、`sshHosts`、手动刷新与面板内直接升级 | 默认内置 |
 | **会话状态与实时用量统计** | 底部四态圆点、一/二级用量面板与每轮悬浮详情卡；支持紧凑/详细动态换行、**分屏多对话独立统计**、旁路提问与可选 **SSH Remote** | 默认开启（SSH 可选） |
@@ -81,7 +81,7 @@ node install.mjs install --only i18n,metrics
 
 | 模块 | 说明 |
 | :--- | :--- |
-| `theme` | Codex 浅色 (`codex-pure-white`) 与深色 (`codex-dark`) 昼夜主题与自定义字体 |
+| `theme` | Codex 浅色 (`codex-pure-white`) 与深色 (`codex-dark`)、莫兰迪 (`codex-morandi`，浅色暖纸灰 / 深色暖炭) 昼夜主题与自定义字体 |
 | `i18n` | 中文界面与 Electron 原生右键菜单本地化（`2,000+` 条词条，`WeakMap` 原地更新） |
 | `metrics` | 实时会话四态指示、一/二级用量面板、每轮统计、分屏多对话支持与模型额度（含可选 SSH Remote） |
 | `fixes` | 设置弹窗路由死锁修复与 `Cmd/Ctrl + -/=/0` 缩放快捷键 |
@@ -204,7 +204,7 @@ node install.mjs install --only i18n,metrics
 <summary>展开：user/ 高级配置字段说明（config.json / custom.css / custom.js）</summary>
 
 - [user/config.json](user/config.json)
-  - `preset`：`"codex-pure-white"` 或 `"codex-dark"`
+  - `preset`：`"codex-pure-white"`（纯白）、`"codex-dark"`（炭灰）、`"codex-morandi"`（莫兰迪·陶土，浅色暖纸灰 + 深色暖炭，按系统明暗自动切换）
   - `themeVars`：覆盖 `--background`、`--sidebar`、`--primary`、`--ag-composer-*`、`--ag-dark-*` 等变量
   - `telemetryLayout`：`"compact"`（默认）或 `"detailed"`（均动态换行）
   - `telemetryCacheMode`：`"session"`（会话累计）或 `"step"`（单步）
@@ -223,7 +223,7 @@ node install.mjs install --only i18n,metrics
 
 | 定制方向 | 对应文件 |
 | :--- | :--- |
-| 昼夜主题配色与布局 | [core/styles/00-base.css](core/styles/00-base.css)、[10-light-codex.css](core/styles/10-light-codex.css)、[20-dark-codex.css](core/styles/20-dark-codex.css) |
+| 昼夜主题配色与布局 | [core/styles/00-base.css](core/styles/00-base.css)、[10-light-codex.css](core/styles/10-light-codex.css)、[15-light-morandi.css](core/styles/15-light-morandi.css)、[20-dark-codex.css](core/styles/20-dark-codex.css)、[25-dark-morandi.css](core/styles/25-dark-morandi.css) |
 | 原生设置面板与自更新 | [core/runtime/75-settings-ui.js](core/runtime/75-settings-ui.js)、[core/styles/45-settings-ui.css](core/styles/45-settings-ui.css)、[core/daemon/updater.mjs](core/daemon/updater.mjs) |
 | 状态机与用量统计面板 | [core/runtime/40-status-machine.js](core/runtime/40-status-machine.js)、[core/runtime/50-telemetry-ui.js](core/runtime/50-telemetry-ui.js)、[core/daemon/telemetry-renderer.mjs](core/daemon/telemetry-renderer.mjs)、[core/styles/30-telemetry.css](core/styles/30-telemetry.css) |
 | 模型额度显示（5h / 7d） | [core/runtime/55-quota-ui.js](core/runtime/55-quota-ui.js)、[core/styles/35-quota.css](core/styles/35-quota.css) |

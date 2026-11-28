@@ -1,0 +1,85 @@
+/* ============================================================================
+ * core/styles/15-light-morandi.css — Light Preset: 莫兰迪 · 陶土 (codex-morandi)
+ * 说明：仅当 html[data-ag-preset="codex-morandi"] 且处于浅色模式时生效。
+ * 选择器比 10-light-codex.css 多一个 [data-ag-preset] 属性，配合文件靠后与
+ * !important 保证覆盖；不改结构，只换变量。
+ * ============================================================================ */
+html[data-ag-preset="codex-morandi"]:not([data-ag-theme-mode="dark"]):not(:has(> body.dark)),
+html[data-ag-preset="codex-morandi"]:not([data-ag-theme-mode="dark"]) body:not(.dark) {
+  --primary: #B5735A !important;                 /* 陶土 */
+  --primary-foreground: #FFFFFF !important;
+  --editor-selection-background: rgba(181, 115, 90, 0.22) !important;
+  --background: #EFEBE2 !important;              /* 暖宣纸灰 */
+  --content: #F6F3EC !important;
+  --foreground: #3B3833 !important;              /* 烟墨 */
+  --secondary-foreground: #4B4740 !important;
+  --muted-foreground: #8C8578 !important;
+  --placeholder: #A39C8D !important;
+  --sidebar: #E7E1D5 !important;                 /* 亚麻石膏 */
+  --shell: #E7E1D5 !important;
+  --vscode-sideBar-background: #E7E1D5 !important;
+  --sidebar-secondary: #DCD5C6 !important;
+  --sidebar-muted: #EEEAE0 !important;
+  --sidebar-border: rgba(70, 62, 48, 0.10) !important;
+  --border: rgba(70, 62, 48, 0.12) !important;
+  --card: #FAF7F1 !important;
+  --card-border: rgba(70, 62, 48, 0.12) !important;
+  --card-edge: rgba(70, 62, 48, 0.08) !important;
+  --sash-line: rgba(70, 62, 48, 0.09) !important;
+  --secondary: rgba(70, 62, 48, 0.06) !important;
+  --muted: rgba(70, 62, 48, 0.05) !important;
+  --link: #A0634C !important;
+  --onyx-frame: #E4DED1 !important;
+  --onyx-well: #EEEAE0 !important;
+  --onyx-raised: #FAF7F1 !important;
+  --onyx-selected: #DAD2C0 !important;
+  --onyx-key: #F3EEE4 !important;
+  --glass: #FBF8F2 !important;
+  --glass-border: rgba(70, 62, 48, 0.12) !important;
+  --glass-highlight: transparent !important;
+  --home-glow: transparent !important;
+
+  --ag-composer-tray-bg: #EEEAE0 !important;
+  --ag-composer-tray-border: transparent !important;
+  --ag-composer-card-bg: #FAF7F1 !important;
+  --ag-composer-card-border: rgba(70, 62, 48, 0.13) !important;
+  --ag-composer-card-shadow: 0 2px 12px rgba(60, 52, 40, 0.09), 0 1px 3px rgba(60, 52, 40, 0.05) !important;
+  --ag-composer-card-focus-border: rgba(181, 115, 90, 0.45) !important;
+  --ag-composer-card-focus-shadow: 0 4px 16px rgba(60, 52, 40, 0.10), 0 1px 3px rgba(60, 52, 40, 0.05) !important;
+  --ag-composer-top-fg: #3B3833 !important;
+  --ag-composer-top-hover-bg: rgba(70, 62, 48, 0.08) !important;
+  --ag-composer-top-hover-fg: #2E2A24 !important;
+  --ag-composer-ctrl-fg: #4B4740 !important;
+  --ag-send-btn-bg: #B5735A !important;
+  --ag-send-btn-hover-bg: #A0634C !important;
+  --ag-send-btn-border: #B5735A !important;
+  --ag-send-btn-shadow: 0 2px 6px rgba(181, 115, 90, 0.30) !important;
+
+  --ag-sidebar-fg: #37342E !important;
+  --ag-sidebar-row-fg: #4B4740 !important;
+  --ag-sidebar-header-fg: #8C8578 !important;
+  --ag-sidebar-header-title-fg: #37342E !important;
+  --ag-sidebar-selected-fg: #2E2A24 !important;
+  --ag-sidebar-muted-fg: #948D7E !important;
+  --ag-menu-item-fg: #4B4740 !important;
+  --ag-menu-header-fg: #8C8578 !important;
+  --ag-dialog-title-fg: #302A22 !important;
+  --ag-dialog-item-fg: #4B4740 !important;
+  --code-foreground: #43403A !important;
+}
+
+/* 选中会话行胶囊 → 莫兰迪亚麻底（覆盖 10-light-codex.css 的中性灰） */
+html[data-ag-preset="codex-morandi"]:not([data-ag-theme-mode="dark"]) body:not(.dark) .agy-sidebar-row[data-selected="true"],
+html[data-ag-preset="codex-morandi"]:not([data-ag-theme-mode="dark"]) body:not(.dark) [data-testid="conversation-row-sidebar"][data-selected="true"] {
+  background-color: #DAD2C0 !important;
+  --row-bg: #DAD2C0 !important;
+}
+
+/* Swarm 插件 iframe 浅色回退色 */
+html[data-ag-preset="codex-morandi"][data-ag-page-type="plugin"]:not([data-ag-theme-mode="dark"]) {
+  --primary-foreground: #FFFFFF !important;
+  --secondary: rgba(70, 62, 48, 0.06) !important;
+  --muted: rgba(70, 62, 48, 0.05) !important;
+  --placeholder: #A39C8D !important;
+  --error: #DC2626 !important;
+}

@@ -27,21 +27,25 @@ export const BASE_SPARSE_PATHS = Object.freeze([
 export const FEATURE_GROUPS = Object.freeze({
   theme: {
     id: 'theme',
-    label: 'Codex 风格昼夜主题 (codex-pure-white / codex-dark)',
+    label: 'Codex / 莫兰迪 昼夜主题 (codex-pure-white / codex-dark / codex-morandi)',
     configKeys: ['theme'],
     sparsePaths: [
       '/core/styles/00-base.css',
       '/core/styles/10-light-codex.css',
+      '/core/styles/15-light-morandi.css',
       '/core/styles/20-dark-codex.css',
+      '/core/styles/25-dark-morandi.css',
       '/core/runtime/20-theme-sync.js'
     ],
     coreRelPaths: [
       'styles/00-base.css',
       'styles/10-light-codex.css',
+      'styles/15-light-morandi.css',
       'styles/20-dark-codex.css',
+      'styles/25-dark-morandi.css',
       'runtime/20-theme-sync.js'
     ],
-    aliases: ['theme', 'codex', 'style', 'styles', 'css', 'dark', 'light']
+    aliases: ['theme', 'codex', 'style', 'styles', 'css', 'dark', 'light', 'morandi']
   },
   i18n: {
     id: 'i18n',

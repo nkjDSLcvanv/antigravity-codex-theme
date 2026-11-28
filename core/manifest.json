@@ -21,8 +21,8 @@
       "bytes": 2123
     },
     "daemon/paths.mjs": {
-      "sha256": "db6b23beb24b6f28deeac0dab2451ee905078d75db6cc307a0a19a4c5fbd9323",
-      "bytes": 25641
+      "sha256": "29e26d177a05e10d01d0f07c47af6a7b20cafd8f78fb239bd8e8ad63096422ec",
+      "bytes": 25751
     },
     "daemon/prompt-suggest.mjs": {
       "sha256": "fe346ce102abb5d9a1ac76d68e8e7e054380ab2f042c7b3c2255a2c05be52407",
@@ -61,8 +61,8 @@
       "bytes": 12591
     },
     "installer/features.mjs": {
-      "sha256": "12d2da5e16e2ed1ebe28d6ecf473cd7551439bffe06296ae31b32b61e6e6e786",
-      "bytes": 6230
+      "sha256": "2b65c82aac0fb36592345b8d4fd979390acbd6b1bf81422ba03c85eaca8d43d6",
+      "bytes": 6421
     },
     "installer/manifest.mjs": {
       "sha256": "4001613efc367581f47aa39e7080f39466810a38aff58c373eb654e54da5a651",
@@ -81,8 +81,8 @@
       "bytes": 2542
     },
     "runtime/20-theme-sync.js": {
-      "sha256": "fd4d48ff82246a690d684a98d9a70f4c1126476d4e7078ed90971ec6a6b98dc5",
-      "bytes": 6481
+      "sha256": "0c332c356a1d657b07341b33a5fb2175bd6b29d9c7405efd3c34e883edc31b7b",
+      "bytes": 6710
     },
     "runtime/30-antigravity-probe.js": {
       "sha256": "424f6a42c645d470edd70e9d8e490bcc40885d359d74631ce340cc9c6193516d",
@@ -128,9 +128,17 @@
       "sha256": "9ba3160b6f9958d56e64e321fbf363327adadcd8f61c4d9b5c71482c385c416c",
       "bytes": 4066
     },
+    "styles/15-light-morandi.css": {
+      "sha256": "92a05472258ae663e15cb07747037ef869b750d5a78a84a7251e45c90921a7a9",
+      "bytes": 4330
+    },
     "styles/20-dark-codex.css": {
       "sha256": "e8a38dfdd97a0329d15cbf7580f288cc24868d3a7bb99108e9b791dfc4300693",
       "bytes": 7466
+    },
+    "styles/25-dark-morandi.css": {
+      "sha256": "f826460d746a7dd0b60daf7895f482fd9f60824ea349801c70e334e8a472f4cd",
+      "bytes": 4624
     },
     "styles/30-telemetry.css": {
       "sha256": "7add205cc330ca1e32c2357eb05d2c126b29cb5a83d553c545ed6e2297f0a580",

@@ -1,0 +1,87 @@
+/* ============================================================================
+ * core/styles/25-dark-morandi.css — Dark Preset: 暖炭莫兰迪 (codex-morandi-dark)
+ * 说明：仅当 html[data-ag-preset="codex-morandi-dark"] 且处于深色模式时生效。
+ * 选择器比 20-dark-codex.css 多一个 [data-ag-preset] 属性，配合文件靠后与
+ * !important 保证覆盖；不改结构，只换变量。
+ * ============================================================================ */
+html[data-ag-preset="codex-morandi-dark"][data-ag-theme-mode="dark"],
+html[data-ag-preset="codex-morandi-dark"][data-ag-theme-mode="dark"] body,
+html[data-ag-preset="codex-morandi-dark"]:has(> body.dark),
+html[data-ag-preset="codex-morandi-dark"] body.dark,
+html[data-ag-preset="codex-morandi-dark"] body.theme-dark,
+html[data-ag-preset="codex-morandi-dark"] body[data-agy-theme].dark {
+  --background: #1F1D1A !important;              /* 暖炭底 */
+  --content: #242220 !important;
+  --foreground: #EDE7DB !important;              /* 象牙暖白 */
+  --primary: #C68E6C !important;                 /* 陶土·暗底提亮 */
+  --primary-foreground: #241A15 !important;
+  --editor-selection-background: rgba(198, 142, 108, 0.30) !important;
+  --editor-comment-selection-background: rgba(198, 142, 108, 0.20) !important;
+  --shell: #262320 !important;
+  --sidebar: #262320 !important;
+  --vscode-sideBar-background: #262320 !important;
+  --sidebar-secondary: #322E2A !important;
+  --sidebar-muted: rgba(245, 235, 220, 0.06) !important;
+  --sidebar-border: rgba(245, 235, 220, 0.09) !important;
+  --secondary: rgba(245, 235, 220, 0.08) !important;
+  --secondary-foreground: #D6D0C4 !important;
+  --muted: rgba(245, 235, 220, 0.05) !important;
+  --muted-foreground: #9B9484 !important;
+  --placeholder: #7C7668 !important;
+  --card: #2A2724 !important;
+  --card-border: rgba(245, 235, 220, 0.11) !important;
+  --card-edge: rgba(245, 235, 220, 0.08) !important;
+  --sash-line: rgba(245, 235, 220, 0.09) !important;
+  --border: rgba(245, 235, 220, 0.11) !important;
+  --glass: #2A2724 !important;
+  --glass-border: rgba(245, 235, 220, 0.11) !important;
+  --glass-highlight: rgba(245, 235, 220, 0.06) !important;
+  --scrim: rgba(0, 0, 0, 0.65) !important;
+  --onyx-frame: #2A2724 !important;
+  --onyx-well: #262320 !important;
+  --onyx-raised: #363029 !important;
+  --onyx-selected: #3A342E !important;
+  --onyx-key: #302B26 !important;
+  --home-glow: transparent !important;
+  --error: #E55353 !important;
+  --warning: #FBBF24 !important;
+  --link: #D2A585 !important;
+  --success: #34D399 !important;
+
+  --ag-composer-tray-bg: #262320 !important;
+  --ag-composer-tray-border: transparent !important;
+  --ag-composer-card-bg: #2A2724 !important;
+  --ag-composer-card-border: rgba(245, 235, 220, 0.11) !important;
+  --ag-composer-card-shadow: 0 3px 14px rgba(0, 0, 0, 0.38), 0 1px 3px rgba(0, 0, 0, 0.28) !important;
+  --ag-composer-card-focus-border: rgba(198, 142, 108, 0.55) !important;
+  --ag-composer-card-focus-shadow: 0 5px 18px rgba(0, 0, 0, 0.45), 0 2px 5px rgba(0, 0, 0, 0.32) !important;
+  --ag-composer-top-fg: #D6D0C4 !important;
+  --ag-composer-top-hover-bg: rgba(245, 235, 220, 0.08) !important;
+  --ag-composer-top-hover-fg: #EDE7DB !important;
+  --ag-composer-ctrl-fg: #D6D0C4 !important;
+  --ag-send-btn-bg: #C68E6C !important;
+  --ag-send-btn-hover-bg: #B57D5C !important;
+  --ag-send-btn-border: rgba(245, 235, 220, 0.12) !important;
+  --ag-send-btn-shadow: 0 2px 6px rgba(0, 0, 0, 0.30) !important;
+
+  --ag-sidebar-fg: #D6D0C4 !important;
+  --ag-sidebar-row-fg: #D6D0C4 !important;
+  --ag-sidebar-header-fg: #9B9484 !important;
+  --ag-sidebar-header-title-fg: #E3DDD1 !important;
+  --ag-sidebar-selected-fg: #EDE7DB !important;
+  --ag-sidebar-muted-fg: #8C8577 !important;
+  --ag-menu-item-fg: #E3DDD1 !important;
+  --ag-menu-header-fg: #9B9484 !important;
+  --ag-dialog-title-fg: #EDE7DB !important;
+  --ag-dialog-item-fg: #E3DDD1 !important;
+  --code-foreground: #E7E0D3 !important;
+}
+
+/* 选中会话行胶囊 → 暖炭莫兰迪底（覆盖 20-dark-codex.css 的中性灰） */
+html[data-ag-preset="codex-morandi-dark"] body.dark .agy-sidebar-row[data-selected="true"],
+html[data-ag-preset="codex-morandi-dark"] body.dark [data-testid="conversation-row-sidebar"][data-selected="true"],
+html[data-ag-preset="codex-morandi-dark"][data-ag-theme-mode="dark"] .agy-sidebar-row[data-selected="true"],
+html[data-ag-preset="codex-morandi-dark"][data-ag-theme-mode="dark"] [data-testid="conversation-row-sidebar"][data-selected="true"] {
+  background-color: #3A342E !important;
+  --row-bg: #3A342E !important;
+}

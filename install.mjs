@@ -3,7 +3,7 @@
  * antigravity-codex-theme · Cross-Platform Installer, Relaunch, Doctor, Verify & Rollback CLI
  *
  * Subcommands:
- *   node install.mjs install      [--channel auto|stable|insiders] [--preset codex-pure-white|codex-dark] [--only <features>] [--without <features>] [--minimal] [--with-launcher] [--target-dir <dir>] [--sync-user]
+ *   node install.mjs install      [--channel auto|stable|insiders] [--preset codex-pure-white|codex-dark|codex-morandi] [--only <features>] [--without <features>] [--minimal] [--with-launcher] [--target-dir <dir>] [--sync-user]
  *   node install.mjs relaunch     [--channel auto|stable|insiders] [--force] [--target-dir <dir>]
  *   node install.mjs doctor       [--channel auto|stable|insiders] [--target-dir <dir>]
  *   node install.mjs verify       [--safe-mode] [--channel auto|stable|insiders] [--target-dir <dir>]
@@ -238,10 +238,20 @@ async function runInstall() {
   } else if (!currentCfg.channel) {
     currentCfg.channel = 'auto';
   }
+  const normalizePreset = (v) => {
+    const s = String(v || '').trim();
+    if (s === 'codex-dark' || s === 'onyx-dark') return 'codex-dark';
+    if (s === 'codex-morandi' || s === 'morandi') return 'codex-morandi';
+    return 'codex-pure-white';
+  };
   if (presetArg) {
-    currentCfg.preset = presetArg === 'codex-dark' || presetArg === 'onyx-dark' ? 'codex-dark' : 'codex-pure-white';
-  } else if (currentCfg.preset !== 'codex-pure-white' && currentCfg.preset !== 'codex-dark') {
-    currentCfg.preset = currentCfg.preset === 'onyx-dark' ? 'codex-dark' : 'codex-pure-white';
+    currentCfg.preset = normalizePreset(presetArg);
+  } else if (
+    currentCfg.preset !== 'codex-pure-white' &&
+    currentCfg.preset !== 'codex-dark' &&
+    currentCfg.preset !== 'codex-morandi'
+  ) {
+    currentCfg.preset = normalizePreset(currentCfg.preset);
   }
   if (!currentCfg.telemetryLayout) currentCfg.telemetryLayout = 'compact';
   if (!currentCfg.telemetryCacheMode) currentCfg.telemetryCacheMode = 'session';
@@ -581,7 +591,7 @@ switch (subcommand) {
   }
   default:
     console.log(`antigravity-codex-theme CLI Usage:
-  node install.mjs install        [--channel auto|stable|insiders] [--preset codex-pure-white|codex-dark] [--only theme,i18n,metrics,fixes,suggest] [--without <list>] [--minimal] [--with-launcher] [--sync-user]
+  node install.mjs install        [--channel auto|stable|insiders] [--preset codex-pure-white|codex-dark|codex-morandi] [--only theme,i18n,metrics,fixes,suggest] [--without <list>] [--minimal] [--with-launcher] [--sync-user]
   node install.mjs update         [--check] [--ref <branch|tag>]
   node install.mjs relaunch       [--channel auto|stable|insiders] [--force]
   node install.mjs doctor         [--channel auto|stable|insiders]

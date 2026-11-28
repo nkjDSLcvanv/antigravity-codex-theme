@@ -3,7 +3,9 @@
  */
   const PRESETS = {
     CODEX_PURE_WHITE: 'codex-pure-white',
-    CODEX_DARK: 'codex-dark'
+    CODEX_DARK: 'codex-dark',
+    MORANDI: 'codex-morandi',
+    MORANDI_DARK: 'codex-morandi-dark'
   };
   const ALL_CUSTOM_PRESET_NAMES = new Set([...Object.values(PRESETS), 'onyx-dark']);
 
@@ -68,7 +70,10 @@
       }
 
       const targetMode = isDark ? 'dark' : 'light';
-      const targetPreset = isDark ? PRESETS.CODEX_DARK : PRESETS.CODEX_PURE_WHITE;
+      const useMorandi = /morandi/i.test(String(DEFAULT_PRESET || ''));
+      const targetPreset = isDark
+        ? (useMorandi ? PRESETS.MORANDI_DARK : PRESETS.CODEX_DARK)
+        : (useMorandi ? PRESETS.MORANDI : PRESETS.CODEX_PURE_WHITE);
 
       const prevPreset = document.documentElement.getAttribute('data-ag-preset');
       if (prevPreset !== targetPreset) {
