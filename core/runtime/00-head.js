@@ -28,6 +28,7 @@
       metrics: true,
       quota: true,
       quotaSidebar: true,
+      activityView: false,
       promptSuggestions: false,
       deadlockHealer: true,
       zoomShortcuts: true,
@@ -40,7 +41,7 @@
 
   const DEFAULT_PRESET = boot.preset || 'codex-pure-white';
   const DEFAULT_EXCLUDE_I18N =
-    'code, pre, kbd, samp, textarea, input, style, script, noscript, [contenteditable="true"], [data-markdown-root], [data-testid="user-message-content"], .agy-user-bubble, .monaco-editor, .monaco-diff-editor, .xterm, [class*="onyx-key"], .prose, .markdown, [class*="chat-message"], [class*="group/file-title"], [data-testid="conversation-row-sidebar"] a[href^="/c/"], [data-testid="conversation-row-sidebar"] span.truncate, [data-testid="conversation-row-history"] a[href^="/c/"], [data-testid="conversation-row-history"] span.truncate, [data-testid="conversation-navigator-turn"], #ag-live-metrics-pill, .ag-live-metrics-pill, #ag-live-metrics-tooltip, #ag-turn-metrics-tooltip, .ag-turn-metrics, #ag-quota, .ag-quota, #ag-quota-popover, .ag-prompt-ghost-overlay, .ag-prompt-ghost-text, .ag-prompt-ghost-kbd, #ag-settings-nav-wrap, #ag-settings-pane, #ag-settings-model-menu, #ag-settings-effort-menu, #ag-settings-font-menu';
+    'code, pre, kbd, samp, textarea, input, style, script, noscript, [contenteditable="true"], [data-markdown-root], [data-testid="user-message-content"], .agy-user-bubble, .monaco-editor, .monaco-diff-editor, .xterm, [class*="onyx-key"], .prose, .markdown, [class*="chat-message"], [class*="group/file-title"], [data-testid="conversation-row-sidebar"] a[href^="/c/"], [data-testid="conversation-row-sidebar"] span.truncate, [data-testid="conversation-row-history"] a[href^="/c/"], [data-testid="conversation-row-history"] span.truncate, [data-testid="conversation-navigator-turn"], #ag-live-metrics-pill, .ag-live-metrics-pill, #ag-live-metrics-tooltip, #ag-turn-metrics-tooltip, .ag-turn-metrics, #ag-quota, .ag-quota, #ag-quota-popover, #ag-activity-toggle-btn, #ag-activity-view, #ag-activity-options-menu, #ag-activity-tooltip, .ag-prompt-ghost-overlay, .ag-prompt-ghost-text, .ag-prompt-ghost-kbd, #ag-settings-nav-wrap, #ag-settings-pane, #ag-settings-model-menu, #ag-settings-effort-menu, #ag-settings-font-menu';
 
   const SELECTORS = Object.assign(
     {
@@ -263,7 +264,7 @@
     if (uiStack) {
       blocks.push(
         `html[data-ag-os], html[data-ag-os] body, html[data-ag-os] body[data-agy-theme], html[data-ag-os] body[data-agy-theme] :where(.font-sans), html[data-ag-os] body[data-agy-font], html[data-ag-os] body[data-agy-font="google-sans"], html[data-ag-os] body[data-agy-font="inter"], html[data-ag-os] body[data-agy-font] :where(.font-sans) { --font-sans: ${uiStack} !important; --vscode-font-family: ${uiStack} !important; --default-font-family: ${uiStack} !important; --sdk-font-family: ${uiStack} !important; --sdk-comment-font-family: ${uiStack} !important; }`,
-        `html[data-ag-os] body, html[data-ag-os] body[data-agy-font], html[data-ag-os] :is(button:not(.context-scope-mention button), select, nav, header, aside, [role="dialog"], [role="dialog"] :is(input, textarea), [role="menu"], [role="listbox"], #ag-settings-pane, #ag-quota, #ag-quota-popover) { font-family: ${uiStack} !important; }`
+        `html[data-ag-os] body, html[data-ag-os] body[data-agy-font], html[data-ag-os] :is(button:not(.context-scope-mention button), select, nav, header, aside, [role="dialog"], [role="dialog"] :is(input, textarea), [role="menu"], [role="listbox"], #ag-settings-pane, #ag-quota, #ag-quota-popover, #ag-activity-view, #ag-activity-options-menu, #ag-activity-tooltip) { font-family: ${uiStack} !important; }`
       );
     }
 
@@ -326,6 +327,10 @@
       'ag-turn-metrics-tooltip',
       'ag-quota',
       'ag-quota-popover',
+      'ag-activity-toggle-btn',
+      'ag-activity-view',
+      'ag-activity-options-menu',
+      'ag-activity-tooltip',
       'ag-settings-nav-divider',
       'ag-settings-nav-wrap',
       'ag-settings-pane',
@@ -370,9 +375,10 @@
     window.__ag_zoom_keydown_fn = null;
     window.__ag_settings_click_fn = null;
     window.__ag_on_route_change = null;
+    window.__ag_activity_open = false;
     window.__ag_body_ready = false;
     applyThemeVars({});
-    for (const attr of ['data-ag-preset', 'data-ag-theme-mode', 'data-ag-page-type', 'data-ag-os', 'data-ag-custom-font-size']) {
+    for (const attr of ['data-ag-preset', 'data-ag-theme-mode', 'data-ag-page-type', 'data-ag-os', 'data-ag-custom-font-size', 'data-ag-activity-open']) {
       document.documentElement.removeAttribute(attr);
     }
     restoreAllTranslations(document.body);

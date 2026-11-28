@@ -20,6 +20,7 @@
     "metrics": true,
     "quota": true,
     "quotaSidebar": true,
+    "activityView": false,
     "sshRemote": false,
     "promptSuggestions": false,
     "deadlockHealer": true,

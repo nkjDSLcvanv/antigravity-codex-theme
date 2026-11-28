@@ -366,6 +366,7 @@ export function createCdpManager({
   bundleCtrl,
   metricsReader,
   promptSuggester = null,
+  activityPreviewReader = null,
   hasSqlite,
   runOnce = false,
   safeMode = false,
@@ -391,6 +392,7 @@ export function createCdpManager({
   let pendingImmediateDiscovery = false;
   let lastFrameAttachedDiscoveryMs = 0;
   let closed = false;
+  let lastSyncedActivityViewJson = '';
   const TARGET_DISCOVERY_INTERVAL_MS = 12500;
   const FAST_WATCH_INTERVAL_MS = 650;
   const NORMAL_SYNC_INTERVAL_MS = 2500;
@@ -422,6 +424,23 @@ export function createCdpManager({
       void sync().catch(() => {});
     }, waitMs);
     immediateDiscoveryTimer.unref?.();
+  }
+
+  async function broadcastActivityPrefs(prefsObj, excludeTargetId = null) {
+    const rawJson = JSON.stringify(prefsObj || {});
+    lastSyncedActivityViewJson = rawJson;
+    const prefJson = rawJson.replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+    for (const [entryId, entry] of attachedTargets.entries()) {
+      if (!entry.hostConfirmed || entry.isSwarmIframe) continue;
+      if (excludeTargetId && entryId === excludeTargetId) continue;
+      if (typeof entry.send !== 'function') continue;
+      try {
+        await entry.send('Runtime.evaluate', {
+          expression: `if (typeof window.__ag_on_activity_prefs_sync === 'function') { window.__ag_on_activity_prefs_sync(${prefJson}); }`,
+          returnByValue: false
+        });
+      } catch {}
+    }
   }
 
   function triggerFastWatch(durationMs = 30000) {
@@ -794,6 +813,7 @@ export function createCdpManager({
             await send('Runtime.addBinding', { name: '__agRequestMetrics' });
             await send('Runtime.addBinding', { name: '__agSyncHostThemeMode' });
             await send('Runtime.addBinding', { name: '__agRequestPromptSuggestion' });
+            await send('Runtime.addBinding', { name: '__agRequestActivityPreviews' });
             await send('Runtime.addBinding', { name: '__agGetSettingsState' });
             await send('Runtime.addBinding', { name: '__agUpdateSettings' });
             await send('Runtime.addBinding', { name: '__agOpenExternalUrl' });
@@ -921,6 +941,48 @@ export function createCdpManager({
                   };
                 }
                 await replyPromptSuggestion(out);
+              })();
+              return;
+            }
+            if (msg.method === 'Runtime.bindingCalled' && msg.params?.name === '__agRequestActivityPreviews') {
+              if (isSwarmIframe || !hostConfirmed) return;
+              let req = {};
+              try {
+                req = msg.params.payload ? JSON.parse(String(msg.params.payload)) : {};
+              } catch {}
+              const reqId = String(req?.reqId || '');
+              const replyActivityPreviews = async (outObj) => {
+                if (ws.readyState !== WebSocket.OPEN) return;
+                const payloadJson = JSON.stringify(outObj)
+                  .replace(/\u2028/g, '\\u2028')
+                  .replace(/\u2029/g, '\\u2029');
+                try {
+                  await send('Runtime.evaluate', {
+                    expression: `if (typeof window.__ag_on_activity_previews === 'function') { window.__ag_on_activity_previews(${JSON.stringify(reqId)}, ${payloadJson}); }`,
+                    returnByValue: false
+                  });
+                } catch {}
+              };
+              const { activeConfig } = bundleCtrl.getState();
+              if (!activityPreviewReader || !activeConfig.enabled || !activeConfig.modules?.activityView) {
+                if (reqId) {
+                  void replyActivityPreviews({
+                    ok: false,
+                    sqliteAvailable: Boolean(activityPreviewReader),
+                    previews: {}
+                  });
+                }
+                return;
+              }
+              const cascadeIds = Array.isArray(req?.cascadeIds) ? req.cascadeIds : [];
+              void (async () => {
+                let out;
+                try {
+                  out = activityPreviewReader.getActivityPreviews(cascadeIds, endpoint.conversationsDir);
+                } catch (err) {
+                  out = { ok: false, previews: {}, error: err?.message || String(err || 'preview read failed') };
+                }
+                await replyActivityPreviews(out);
               })();
               return;
             }
@@ -1068,6 +1130,7 @@ export function createCdpManager({
                     telemetryCacheMode: activeConfig.telemetryCacheMode,
                     quotaStyle: activeConfig.quotaStyle,
                     quotaOtherStyle: activeConfig.quotaOtherStyle,
+                    activityView: activeConfig.activityView,
                     fonts: Object.assign({ mode: 'global', global: '', ui: '', chat: '', code: '' }, activeConfig.fonts || {}),
                     promptSuggestionModel: activeConfig.promptSuggestionModel,
                     sshHosts: Array.isArray(activeConfig.sshHosts) ? activeConfig.sshHosts : [],
@@ -1118,13 +1181,22 @@ export function createCdpManager({
                   if (!activeConfig.enabled) {
                     targetThemeModes.clear();
                   }
+                  const patchKeys = Object.keys(patch || {});
+                  const isActivityPrefsOnly = patchKeys.length === 1 && patchKeys[0] === 'activityView';
                   for (const entry of attachedTargets.values()) {
                     if (!entry.hostConfirmed) continue;
                     try {
                       if (entry.updateNewDocScript) await entry.updateNewDocScript();
-                      if (entry.inject) await entry.inject();
-                      if (entry.syncMetricsForSession) await entry.syncMetricsForSession(true);
+                      if (!isActivityPrefsOnly) {
+                        if (entry.inject) await entry.inject();
+                        if (entry.syncMetricsForSession) await entry.syncMetricsForSession(true);
+                      }
                     } catch {}
+                  }
+                  if (isActivityPrefsOnly) {
+                    await broadcastActivityPrefs(activeConfig.activityView, target.id);
+                  } else {
+                    lastSyncedActivityViewJson = JSON.stringify(activeConfig.activityView || {});
                   }
                 }
                 const { activeConfig, cachedPatchVersion } = bundleCtrl.getState();
@@ -1142,6 +1214,7 @@ export function createCdpManager({
                     telemetryCacheMode: activeConfig.telemetryCacheMode,
                     quotaStyle: activeConfig.quotaStyle,
                     quotaOtherStyle: activeConfig.quotaOtherStyle,
+                    activityView: activeConfig.activityView,
                     fonts: Object.assign({ mode: 'global', global: '', ui: '', chat: '', code: '' }, activeConfig.fonts || {}),
                     promptSuggestionModel: activeConfig.promptSuggestionModel,
                     sshHosts: Array.isArray(activeConfig.sshHosts) ? activeConfig.sshHosts : [],
@@ -1253,6 +1326,13 @@ export function createCdpManager({
         promptSuggester.syncState();
       }
       const { activeConfig } = bundleCtrl.getState();
+      const curActivityViewJson = JSON.stringify(activeConfig.activityView || {});
+      const activityPrefsChangedOnDisk = Boolean(
+        bundleChanged && lastSyncedActivityViewJson && curActivityViewJson !== lastSyncedActivityViewJson
+      );
+      if (!lastSyncedActivityViewJson) {
+        lastSyncedActivityViewJson = curActivityViewJson;
+      }
       if (sshRemoteCtrl && typeof sshRemoteCtrl.syncState === 'function') {
         sshRemoteCtrl.syncState({
           enabled: Boolean(activeConfig.enabled && activeConfig.modules?.sshRemote),
@@ -1374,6 +1454,9 @@ export function createCdpManager({
 
       await syncTargetBatch(pendingPages);
       await syncTargetBatch(pendingIframes);
+      if (activityPrefsChangedOnDisk) {
+        await broadcastActivityPrefs(activeConfig.activityView, null);
+      }
 
       for (const [id, entry] of attachedTargets.entries()) {
         if (!activeTargetIds.has(id)) {

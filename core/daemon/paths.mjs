@@ -156,6 +156,7 @@ const EDITABLE_MODULE_KEYS = new Set([
   'metrics',
   'quota',
   'quotaSidebar',
+  'activityView',
   'promptSuggestions',
   'sshRemote',
   'deadlockHealer',
@@ -189,6 +190,16 @@ export function normalizeFontsConfig(raw) {
     ui: sanitizeFontField(src.ui),
     chat: sanitizeFontField(src.chat),
     code: sanitizeFontField(src.code)
+  };
+}
+
+export function normalizeActivityViewConfig(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    showPriority: src.showPriority !== false,
+    showPinned: Boolean(src.showPinned),
+    showScheduled: Boolean(src.showScheduled),
+    unreadOnly: Boolean(src.unreadOnly)
   };
 }
 
@@ -250,6 +261,17 @@ export function sanitizeConfigPatch(currentCfg, patch) {
     base.sshHosts = out;
   }
 
+  if (patch.activityView && typeof patch.activityView === 'object') {
+    const prevAv = normalizeActivityViewConfig(base.activityView);
+    const nextAv = { ...prevAv };
+    for (const k of ['showPriority', 'showPinned', 'showScheduled', 'unreadOnly']) {
+      if (typeof patch.activityView[k] === 'boolean') {
+        nextAv[k] = patch.activityView[k];
+      }
+    }
+    base.activityView = nextAv;
+  }
+
   return base;
 }
 
@@ -258,8 +280,10 @@ export function createBundleController({
   cliChannel = null,
   hasSqlite = false,
   cliOpts = {},
-  daemonBootId = DAEMON_BOOT_ID
+  daemonBootId = DAEMON_BOOT_ID,
+  userDir = USER_DIR
 } = {}) {
+  const effectiveUserDir = userDir || USER_DIR;
   let cachedBundleSig = '';
   let cachedInjectScript = '';
   let cachedPatchVersion = '';
@@ -272,6 +296,7 @@ export function createBundleController({
     telemetryCacheMode: 'session',
     quotaStyle: 'segments',
     quotaOtherStyle: 'lines',
+    activityView: normalizeActivityViewConfig({}),
     fonts: { mode: 'global', global: '', ui: '', chat: '', code: '' },
     contextLimit: 'auto',
     manualContextLimit: 0,
@@ -283,6 +308,7 @@ export function createBundleController({
       metrics: Boolean(hasSqlite),
       quota: true,
       quotaSidebar: true,
+      activityView: false,
       sshRemote: false,
       promptSuggestions: false,
       deadlockHealer: true,
@@ -306,10 +332,10 @@ export function createBundleController({
     const userFiles = safeMode
       ? []
       : [
-          path.join(USER_DIR, 'config.json'),
-          path.join(USER_DIR, 'custom.css'),
-          path.join(USER_DIR, 'i18n.override.json'),
-          path.join(USER_DIR, 'custom.js')
+          path.join(effectiveUserDir, 'config.json'),
+          path.join(effectiveUserDir, 'custom.css'),
+          path.join(effectiveUserDir, 'i18n.override.json'),
+          path.join(effectiveUserDir, 'custom.js')
         ];
 
     const sig =
@@ -322,7 +348,7 @@ export function createBundleController({
       return false;
     }
 
-    const userCfg = safeMode ? {} : readJsonSafe(path.join(USER_DIR, 'config.json'), {});
+    const userCfg = safeMode ? {} : readJsonSafe(path.join(effectiveUserDir, 'config.json'), {});
     const enabled = safeMode ? true : userCfg.enabled !== false;
     const channel = cliChannel || userCfg.channel || 'auto';
     const presetRaw = String(userCfg.preset || 'codex-pure-white').trim();
@@ -331,6 +357,10 @@ export function createBundleController({
     const telemetryCacheMode = userCfg.telemetryCacheMode === 'step' ? 'step' : 'session';
     const quotaStyle = VALID_QUOTA_STYLES.has(userCfg.quotaStyle) ? userCfg.quotaStyle : 'segments';
     const quotaOtherStyle = VALID_QUOTA_OTHER_STYLES.has(userCfg.quotaOtherStyle) ? userCfg.quotaOtherStyle : 'lines';
+    const activityViewConfigured = Boolean(
+      !safeMode && userCfg && userCfg.activityView && typeof userCfg.activityView === 'object'
+    );
+    const activityView = normalizeActivityViewConfig(activityViewConfigured ? userCfg.activityView : {});
     const fonts = normalizeFontsConfig(safeMode ? {} : userCfg.fonts);
 
     const rawContextLimit = userCfg.contextLimit;
@@ -355,6 +385,7 @@ export function createBundleController({
         metrics: true,
         quota: true,
         quotaSidebar: true,
+        activityView: false,
         sshRemote: false,
         promptSuggestions: false,
         deadlockHealer: true,
@@ -375,6 +406,7 @@ export function createBundleController({
       fs.existsSync(path.join(RUNTIME_DIR, '50-telemetry-ui.js')) &&
       fs.existsSync(path.join(CORE_DIR, 'daemon', 'sqlite-metrics.mjs'));
     const hasQuotaFiles = fs.existsSync(path.join(RUNTIME_DIR, '55-quota-ui.js'));
+    const hasActivityViewFiles = fs.existsSync(path.join(RUNTIME_DIR, '65-activity-view.js'));
     const hasPromptSuggestFiles =
       fs.existsSync(path.join(RUNTIME_DIR, '70-prompt-suggestions.js')) &&
       fs.existsSync(path.join(CORE_DIR, 'daemon', 'prompt-suggest.mjs'));
@@ -389,6 +421,7 @@ export function createBundleController({
       modules.quota = false;
       modules.quotaSidebar = false;
     }
+    if (!hasActivityViewFiles) modules.activityView = false;
     if (!hasPromptSuggestFiles) modules.promptSuggestions = false;
     if (!hasGuardsFile) {
       modules.deadlockHealer = false;
@@ -431,6 +464,8 @@ export function createBundleController({
       telemetryCacheMode,
       quotaStyle,
       quotaOtherStyle,
+      activityView,
+      activityViewConfigured,
       fonts,
       contextLimit,
       manualContextLimit,
@@ -452,12 +487,13 @@ export function createBundleController({
     const activeStyleEntries = allStyleEntries.filter(({ base }) => {
       if (base === '30-telemetry.css') return Boolean(modules.metrics);
       if (base === '35-quota.css') return Boolean(modules.quota || modules.quotaSidebar);
+      if (base === '38-activity-view.css') return Boolean(modules.activityView);
       if (base === '40-prompt-suggestions.css') return Boolean(modules.promptSuggestions);
       if (base === '45-settings-ui.css') return Boolean(enabled);
       return modules.theme !== false;
     });
     const baseCss = activeStyleEntries.map((entry) => entry.text).join('\n\n');
-    const customCss = !safeMode && modules.customCss ? readTextSafe(path.join(USER_DIR, 'custom.css'), '') : '';
+    const customCss = !safeMode && modules.customCss ? readTextSafe(path.join(effectiveUserDir, 'custom.css'), '') : '';
     const rawI18nText = readTextSafe(path.join(CORE_DIR, 'i18n.json'), '');
     let baseDict = {};
     if (modules.i18n && rawI18nText) {
@@ -468,9 +504,9 @@ export function createBundleController({
       }
     }
     const rawOverrideDict =
-      modules.i18n && !safeMode ? readJsonSafe(path.join(USER_DIR, 'i18n.override.json'), {}) : {};
+      modules.i18n && !safeMode ? readJsonSafe(path.join(effectiveUserDir, 'i18n.override.json'), {}) : {};
     const mergedDict = modules.i18n ? Object.assign({}, baseDict, normalizeOverrideDict(rawOverrideDict)) : {};
-    const customJs = !safeMode && modules.customJs ? readTextSafe(path.join(USER_DIR, 'custom.js'), '') : '';
+    const customJs = !safeMode && modules.customJs ? readTextSafe(path.join(effectiveUserDir, 'custom.js'), '') : '';
     const runtimeTemplate = runtimeFiles.map((f) => readTextSafe(f, '')).join('\n');
 
     const manifestText = readTextSafe(manifestPath, '');
@@ -529,6 +565,8 @@ export function createBundleController({
       telemetryCacheMode,
       quotaStyle,
       quotaOtherStyle,
+      activityView,
+      activityViewConfigured,
       fonts,
       cssText: baseCss,
       customCss,
@@ -544,6 +582,7 @@ export function createBundleController({
         telemetryCacheMode,
         quotaStyle,
         quotaOtherStyle,
+        activityView,
         fonts,
         contextLimit,
         promptSuggestionModel,
@@ -564,9 +603,9 @@ export function createBundleController({
 
   function updateUserConfig(patch) {
     if (safeMode) return { ok: false, error: 'safeMode enabled' };
-    const cfgPath = path.join(USER_DIR, 'config.json');
+    const cfgPath = path.join(effectiveUserDir, 'config.json');
     try {
-      fs.mkdirSync(USER_DIR, { recursive: true });
+      fs.mkdirSync(effectiveUserDir, { recursive: true });
       const current = readJsonSafe(cfgPath, {});
       const next = sanitizeConfigPatch(current, patch);
       const serialized = JSON.stringify(next, null, 2) + '\n';

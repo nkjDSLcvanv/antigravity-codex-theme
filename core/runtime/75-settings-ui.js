@@ -422,6 +422,8 @@
             modQuotaDesc: '在会话统计面板底部显示当前模型池的 5h / 7d 剩余额度',
             quotaSidebarLbl: '模型额度（侧边栏）',
             quotaSidebarDesc: '在「系统设置」上方常驻显示当前与其他模型池额度；侧栏折叠时自动隐藏',
+            modActivityView: '侧栏活动视图（Activity View）',
+            modActivityViewDesc: '在顶部栏增加活动视图按钮与 ⌥⌘U / Ctrl+Alt+U 快捷键，支持优先/日期分组、两行最新回复预览与筛选',
             quotaStyleLbl: '当前模型池',
             quotaStyleHint: '正在使用的池子，显示具体数值与重置时间',
             quotaOtherLbl: '其他模型池',
@@ -531,6 +533,8 @@
           modQuotaDesc: 'Shows 5h / 7d remaining quota of the active pool at the bottom of the session stats panel',
           quotaSidebarLbl: 'Model Quota (Sidebar)',
           quotaSidebarDesc: 'Pins a quota block above Settings showing active and other pools; hidden when the sidebar collapses',
+          modActivityView: 'Sidebar Activity View',
+          modActivityViewDesc: 'Adds the Activity view toggle button and ⌥⌘U / Ctrl+Alt+U shortcut with Priority & daily grouping, 2-line previews, and filters',
           quotaStyleLbl: 'Active Pool',
           quotaStyleHint: 'The pool in use, with exact values and reset time',
           quotaOtherLbl: 'Other Pools',
@@ -2095,6 +2099,19 @@
           '</span>' +
           '</div>' +
           '<div class="ag-s-card">' +
+          // Sidebar Activity View
+          '<div class="ag-s-row"><div class="ag-s-row-main">' +
+          '<div class="ag-s-row-info"><label class="ag-s-row-label" for="ag-s-sw-activity-view">' +
+          escHtml(s.modActivityView) +
+          '</label><div class="ag-s-row-desc">' +
+          escHtml(s.modActivityViewDesc) +
+          '</div></div>' +
+          '<input id="ag-s-sw-activity-view" type="checkbox" switch role="switch" class="ag-s-switch" data-bind-mod="activityView" aria-label="' +
+          escHtml(s.modActivityView) +
+          '" ' +
+          (Boolean(mods.activityView) ? 'checked' : '') +
+          ' />' +
+          '</div></div>' +
           // Prompt Suggestions
           '<div class="ag-s-row">' +
           '<div class="ag-s-row-main">' +

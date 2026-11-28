@@ -25,7 +25,8 @@ test('parseFeatureSelection resolves --only and --without flags cleanly', () => 
     i18n: true,
     metrics: true,
     fixes: true,
-    suggest: false
+    suggest: false,
+    activity: false
   });
 
   const onlyI18n = parseFeatureSelection({ onlyArg: 'i18n,metrics' });
@@ -35,7 +36,8 @@ test('parseFeatureSelection resolves --only and --without flags cleanly', () => 
     i18n: true,
     metrics: true,
     fixes: false,
-    suggest: false
+    suggest: false,
+    activity: false
   });
   assert.deepEqual(onlyI18n.modulesPatch, {
     theme: false,
@@ -43,12 +45,19 @@ test('parseFeatureSelection resolves --only and --without flags cleanly', () => 
     metrics: true,
     deadlockHealer: false,
     zoomShortcuts: false,
-    promptSuggestions: false
+    promptSuggestions: false,
+    activityView: false
   });
 
   const onlySuggest = parseFeatureSelection({ onlyArg: 'i18n,suggest' });
   assert.equal(onlySuggest.selected.suggest, true);
   assert.equal(onlySuggest.modulesPatch.promptSuggestions, true);
+  assert.equal(onlySuggest.selected.activity, false);
+  assert.equal(onlySuggest.modulesPatch.activityView, false);
+
+  const onlyActivity = parseFeatureSelection({ onlyArg: 'theme,activity' });
+  assert.equal(onlyActivity.selected.activity, true);
+  assert.equal(onlyActivity.modulesPatch.activityView, true);
 
   const withoutMetrics = parseFeatureSelection({ withoutArg: 'metrics,fixes' });
   assert.equal(withoutMetrics.explicit, true);
@@ -57,7 +66,8 @@ test('parseFeatureSelection resolves --only and --without flags cleanly', () => 
     i18n: true,
     metrics: false,
     fixes: false,
-    suggest: false
+    suggest: false,
+    activity: false
   });
 
   assert.throws(() => parseFeatureSelection({ onlyArg: 'nonexistent' }), /Unknown feature/);
@@ -104,6 +114,11 @@ test('Assembled partial runtime bundles execute without ReferenceError when opti
       name: 'suggest-only',
       parts: ['00-head.js', '70-prompt-suggestions.js', '90-tail.js'],
       modules: { theme: false, i18n: false, metrics: false, promptSuggestions: true, deadlockHealer: false, zoomShortcuts: false }
+    },
+    {
+      name: 'activity-only',
+      parts: ['00-head.js', '65-activity-view.js', '90-tail.js'],
+      modules: { theme: false, i18n: false, metrics: false, activityView: true, promptSuggestions: false, deadlockHealer: false, zoomShortcuts: false }
     },
     {
       name: 'settings-ui',

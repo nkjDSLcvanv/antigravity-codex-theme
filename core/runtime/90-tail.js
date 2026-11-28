@@ -17,6 +17,9 @@
     },
     syncPreset: typeof syncThemePreset === 'function' ? syncThemePreset : () => {},
     ensureMetricsPill: typeof ensureMetricsPill === 'function' ? ensureMetricsPill : () => null,
+    toggleActivityView: () => {
+      if (typeof window.__ag_toggle_activity_view === 'function') window.__ag_toggle_activity_view();
+    },
     onCleanup(fn) {
       if (typeof fn === 'function' && Array.isArray(window.__ag_cleanup_fns)) {
         window.__ag_cleanup_fns.push(fn);
@@ -68,6 +71,9 @@
     }
     if (typeof mountQuotaUi === 'function') {
       mountQuotaUi();
+    }
+    if (typeof mountActivityView === 'function') {
+      mountActivityView();
     }
     if (typeof mountPromptSuggestions === 'function') {
       mountPromptSuggestions();
