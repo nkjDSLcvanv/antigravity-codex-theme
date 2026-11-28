@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -14,6 +15,7 @@ import {
   extractLatestMessagePreviewFromDb,
   createActivityPreviewReader
 } from '../core/daemon/activity-previews.mjs';
+import { createCdpManager } from '../core/daemon/cdp-bridge.mjs';
 import { sanitizeConfigPatch, normalizeActivityViewConfig, createBundleController } from '../core/daemon/paths.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1200,9 +1202,15 @@ test('Regression: serverUnread mark-as-read, showPriority=false mark-all-read, c
   assert.ok(!panel.innerHTML.includes('data-unread="true"'), 'Mark all as read must suppress serverUnread locally');
 
   // 3. If a brand-new message arrives later (lastModifiedTime advances past localReadTimes), serverUnread re-activates!
-  fakeStoreState.trajectorySummaries.summaries[cidServerUnread].lastModifiedTime = {
-    seconds: String(nowSec + 60),
-    nanos: 0
+  fakeStoreState.trajectorySummaries = {
+    ...fakeStoreState.trajectorySummaries,
+    summaries: {
+      ...fakeStoreState.trajectorySummaries.summaries,
+      [cidServerUnread]: {
+        ...fakeStoreState.trajectorySummaries.summaries[cidServerUnread],
+        lastModifiedTime: { seconds: String(nowSec + 60), nanos: 0 }
+      }
+    }
   };
   for (const sub of storeSubscribers) sub();
   assert.ok(panel.innerHTML.includes('data-unread="true"'), 'New message advancing modSec must re-activate unread state');
@@ -1211,6 +1219,7 @@ test('Regression: serverUnread mark-as-read, showPriority=false mark-all-read, c
   assert.equal(previewRequests.length, 1);
   sandbox.__ag_on_activity_previews(previewRequests[0].reqId, {
     ok: true,
+    sqliteAvailable: true,
     previews: {
       [cidServerUnread]: { text: 'Old reply', hasError: false, sig: '1:1' },
       [cidSelected]: { text: 'Selected reply', hasError: false, sig: '1:1' }
@@ -1220,9 +1229,15 @@ test('Regression: serverUnread mark-as-read, showPriority=false mark-all-read, c
   assert.equal(previewRequests.length, 2, 'Mid-flight modSec advance on cidServerUnread should immediately re-fetch');
   assert.deepEqual(Array.from(previewRequests[1].cascadeIds), [cidServerUnread]);
 
-  fakeStoreState.trajectorySummaries.summaries[cidSelected].lastModifiedTime = {
-    seconds: String(nowSec + 120),
-    nanos: 0
+  fakeStoreState.trajectorySummaries = {
+    ...fakeStoreState.trajectorySummaries,
+    summaries: {
+      ...fakeStoreState.trajectorySummaries.summaries,
+      [cidSelected]: {
+        ...fakeStoreState.trajectorySummaries.summaries[cidSelected],
+        lastModifiedTime: { seconds: String(nowSec + 120), nanos: 0 }
+      }
+    }
   };
   for (const sub of storeSubscribers) sub();
   assert.equal(previewRequests.length, 3, 'Advancing modSec on cached cidSelected should trigger immediate preview refresh');
@@ -1272,7 +1287,7 @@ test('Regression: serverUnread mark-as-read, showPriority=false mark-all-read, c
 test('Running sessions (agent working / background tasks) render neutral running indicators instead of blue unread dot until finished', () => {
   const h = loadActivityPureHelpers();
 
-  // Codex Desktop parity (JHLi -> Ypxi.Kq): active takes precedence over unread
+  // Active/working takes precedence over unread
   assert.equal(h.classifyConversationAttention({ isActive: true, isUnread: true }), 'active');
   assert.equal(h.classifyConversationAttention({ isActive: false, isUnread: true }), 'unread');
   assert.equal(h.classifyConversationAttention({ hasWaiting: true, isActive: true }), 'waiting');
@@ -1456,10 +1471,22 @@ test('Running sessions (agent working / background tasks) render neutral running
   assert.ok(panel.innerHTML.includes('ag-av-indicator-working'), 'Agent-running session should render neutral working spinner');
 
   // Once the 2 background tasks finish, the unread session transitions to the blue unread dot!
-  storeState.trajectorySummaries.indexes.active[cidTasks] = false;
-  storeState.trajectorySummaries.summaries[cidTasks].notFullyIdle = false;
-  storeState.trajectorySummaries.summaries[cidTasks].hasActivity = false;
-  storeState.trajectorySummaries.summaries[cidTasks].backgroundTaskCount = 0;
+  storeState.trajectorySummaries = {
+    ...storeState.trajectorySummaries,
+    indexes: {
+      ...storeState.trajectorySummaries.indexes,
+      active: { ...storeState.trajectorySummaries.indexes.active, [cidTasks]: false }
+    },
+    summaries: {
+      ...storeState.trajectorySummaries.summaries,
+      [cidTasks]: {
+        ...storeState.trajectorySummaries.summaries[cidTasks],
+        notFullyIdle: false,
+        hasActivity: false,
+        backgroundTaskCount: 0
+      }
+    }
+  };
   for (const sub of subscribers) sub();
   assert.ok(panel.innerHTML.includes('ag-av-dot" data-state="unread"'), 'Finished unread session must transition to blue unread dot');
   assert.ok(panel.innerHTML.includes('data-unread="true"'));
@@ -1723,7 +1750,13 @@ test('Right-clicking Activity View cards delegates to native conversation contex
   assert.equal(docAttrs.get('data-ag-activity-open'), 'true', 'Activity View should automatically restore after Rename finishes');
 
   // 3. Selecting native "Mark Unread" (serverUnread flips false -> true) clears localReadTimes and activates blue unread dot
-  storeState.trajectorySummaries.indexes.serverUnread[cidMounted] = true;
+  storeState.trajectorySummaries = {
+    ...storeState.trajectorySummaries,
+    indexes: {
+      ...storeState.trajectorySummaries.indexes,
+      serverUnread: { ...storeState.trajectorySummaries.indexes.serverUnread, [cidMounted]: true }
+    }
+  };
   for (const sub of subscribers) sub();
   assert.ok(panel.innerHTML.includes('ag-av-dot" data-state="unread"'), 'Native Mark Unread must clear localReadTimes suppression');
 
@@ -1744,5 +1777,605 @@ test('Right-clicking Activity View cards delegates to native conversation contex
   assert.ok(fallbackMenu.innerHTML.includes('Copy Conversation Name'));
   assert.ok(fallbackMenu.innerHTML.includes('Copy Conversation ID'));
 
+  // 4b. Cross-window prefs sync while fallback context menu is open MUST NOT overwrite the card context menu!
+  sandbox.__ag_on_activity_prefs_sync({ showPriority: true, showPinned: true, showScheduled: false, unreadOnly: false });
+  assert.equal(sandbox.__ag_get_activity_view_state().prefs.showPinned, true);
+  assert.ok(fallbackMenu.innerHTML.includes('Copy Conversation Name'), 'Fallback context menu must not be overwritten by prefs sync');
+  assert.ok(!fallbackMenu.innerHTML.includes('Priority section'), 'Options menu must not replace open card context menu');
+
   for (const fn of sandbox.__ag_cleanup_fns) fn();
+});
+
+test('PR #20 review fixes: Redux slice O(1) skip & closed fast scan, sqliteAvailable=false stop-loop, pending timer/rAF cleanup, Rename session preservation & safe cid navigation', () => {
+  // A. activity-previews returns sqliteAvailable: false when DatabaseSync is unavailable (Node < 22.13)
+  const noSqliteReader = createActivityPreviewReader({ getDatabaseSync: () => null });
+  const noSqlRes = noSqliteReader.getActivityPreviews(['11111111-1111-1111-1111-111111111111'], os.tmpdir());
+  assert.deepEqual(noSqlRes, { ok: true, sqliteAvailable: false, previews: {} });
+
+  // B. Runtime checks: slice skip, closed fast scan, sqliteAvailable=false stop-loop, timer/rAF cleanup, Rename state preservation, safe cid selector
+  const runtimeDir = path.join(ROOT_DIR, 'core', 'runtime');
+  const code = ['00-head.js', '65-activity-view.js', '90-tail.js']
+    .map((f) => fs.readFileSync(path.join(runtimeDir, f), 'utf8'))
+    .join('\n');
+
+  const elementsById = new Map();
+  const docAttrs = new Map();
+  const observers = [];
+  const previewRequests = [];
+  const activeTimeouts = new Map();
+  const activeRafs = new Map();
+  let nextTimerId = 1;
+  let nextRafId = 1;
+  let rafScheduleCount = 0;
+
+  function makeEl(tag, id = '') {
+    const attrs = new Map();
+    const listeners = new Map();
+    const children = [];
+    const el = {
+      tagName: tag.toUpperCase(),
+      get id() { return attrs.get('id') || ''; },
+      set id(v) {
+        const prev = attrs.get('id');
+        if (prev && elementsById.get(prev) === el) elementsById.delete(prev);
+        attrs.set('id', String(v));
+        if (v) elementsById.set(String(v), el);
+      },
+      hidden: false,
+      scrollTop: 0,
+      innerHTML: '',
+      textContent: '',
+      style: {},
+      parentElement: null,
+      parentNode: null,
+      children,
+      setAttribute(k, v) { if (k === 'id') this.id = v; else attrs.set(k, String(v)); },
+      getAttribute(k) { return attrs.has(k) ? attrs.get(k) : null; },
+      hasAttribute(k) { return attrs.has(k); },
+      removeAttribute(k) { attrs.delete(k); },
+      appendChild(c) { c.parentElement = el; c.parentNode = el; children.push(c); return c; },
+      insertBefore(c) { c.parentElement = el; c.parentNode = el; children.push(c); return c; },
+      remove() { if (this.id && elementsById.get(this.id) === this) elementsById.delete(this.id); },
+      addEventListener(t, fn) { if (!listeners.has(t)) listeners.set(t, []); listeners.get(t).push(fn); },
+      dispatch(t, ev = {}) {
+        const list = listeners.get(t) || [];
+        const full = Object.assign({ preventDefault() {}, stopPropagation() {}, target: el }, ev);
+        for (const fn of list) fn(full);
+        return full;
+      },
+      getBoundingClientRect: () => ({ left: 10, top: 10, right: 200, bottom: 50, width: 190, height: 40 }),
+      querySelector: () => null,
+      querySelectorAll: () => []
+    };
+    if (id) el.id = id;
+    return el;
+  }
+
+  const headEl = makeEl('head');
+  const bodyEl = makeEl('body');
+  const sidebarEl = makeEl('aside');
+  sidebarEl.setAttribute('class', 'bg-sidebar');
+  const headerRow = makeEl('div');
+  const searchBtn = makeEl('button');
+  searchBtn.setAttribute('data-testid', 'sidebar-search-button');
+  searchBtn.closest = (sel) => (sel.includes('aside') || sel.includes('.bg-sidebar') ? sidebarEl : null);
+  headerRow.appendChild(searchBtn);
+  sidebarEl.appendChild(headerRow);
+  const listParent = makeEl('div');
+  const listEl = makeEl('div');
+  listEl.setAttribute('data-testid', 'conversation-list-sidebar');
+  listEl.closest = (sel) => (sel.includes('aside') || sel.includes('.bg-sidebar') ? sidebarEl : null);
+  listParent.appendChild(listEl);
+  sidebarEl.appendChild(listParent);
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const cid1 = '11111111-1111-1111-1111-111111111111';
+  const cidOdd = 'custom"]unsafe-id';
+  let oddLinkClicked = false;
+  let renameInput = null;
+  const nativeRow1 = makeEl('div');
+  nativeRow1.setAttribute('data-testid', 'conversation-row-sidebar');
+  nativeRow1.setAttribute('data-cascade-id', cid1);
+  nativeRow1.dispatchEvent = () => true;
+  nativeRow1.querySelector = (sel) => (sel === 'input' ? renameInput : null);
+
+  const nativeRowOdd = makeEl('div');
+  nativeRowOdd.setAttribute('data-testid', 'conversation-row-sidebar');
+  nativeRowOdd.setAttribute('data-cascade-id', cidOdd);
+  nativeRowOdd.querySelector = (sel) =>
+    sel === 'a[href]' ? { click() { oddLinkClicked = true; } } : null;
+
+  const summaries = {
+    [cid1]: {
+      summary: 'Held Priority Chat',
+      status: 1,
+      lastModifiedTime: { seconds: String(nowSec - 10), nanos: 0 },
+      annotations: { lastUserViewTime: { seconds: String(nowSec - 300), nanos: 0 } },
+      trajectoryMetadata: { projectId: 'outside-of-project' }
+    }
+  };
+  const topLevel = { [cid1]: true };
+  for (let i = 0; i < 12; i++) {
+    const id = `22222222-2222-2222-2222-${String(i).padStart(12, '0')}`;
+    topLevel[id] = true;
+    summaries[id] = {
+      summary: `Recent Chat ${i}`,
+      status: 1,
+      lastModifiedTime: { seconds: String(nowSec - 100 - i * 10), nanos: 0 },
+      annotations: { lastUserViewTime: { seconds: String(nowSec), nanos: 0 } },
+      trajectoryMetadata: { projectId: 'outside-of-project' }
+    };
+  }
+  const subscribers = [];
+  const storeState = {
+    inputDrafts: { text: '' },
+    sideBar: { isOpen: true },
+    conversation: { convoState: { cascadeId: '' }, localLastViewedTimes: {} },
+    sidebarProjects: { projects: [] },
+    trajectorySummaries: {
+      indexes: { topLevel, active: {}, pinned: {}, archived: {}, serverUnread: { [cid1]: true }, hasWaitingSteps: {} },
+      summaries
+    }
+  };
+  listEl.__reactFiber$test = {
+    memoizedProps: {
+      value: {
+        store: {
+          getState: () => storeState,
+          subscribe: (fn) => { subscribers.push(fn); return () => {}; }
+        }
+      }
+    },
+    return: null
+  };
+
+  class FakeMouseEvent {
+    constructor(type, init = {}) {
+      this.type = type;
+      Object.assign(this, init);
+    }
+  }
+
+  let autoFlushRaf = true;
+  const sandbox = {
+    MouseEvent: FakeMouseEvent,
+    location: { pathname: '/', href: 'https://127.0.0.1/', search: '' },
+    navigator: { platform: 'MacIntel', onLine: true },
+    history: { pushState() {}, replaceState() {} },
+    document: {
+      head: headEl,
+      body: bodyEl,
+      hidden: false,
+      documentElement: {
+        style: { removeProperty() {} },
+        setAttribute: (k, v) => docAttrs.set(k, String(v)),
+        getAttribute: (k) => docAttrs.get(k) ?? null,
+        removeAttribute: (k) => docAttrs.delete(k)
+      },
+      getElementById: (id) => elementsById.get(id) || null,
+      createElement: (t) => makeEl(t),
+      getElementsByTagName: (t) => (t === 'head' ? [headEl] : []),
+      querySelector(sel) {
+        if (sel.includes('unsafe-id')) throw new Error('DOMException: invalid selector');
+        if (sel === '[data-testid="sidebar-search-button"]') return searchBtn;
+        if (sel === '[data-testid="conversation-list-sidebar"]') return listEl;
+        if (sel === `[data-testid="conversation-row-sidebar"][data-cascade-id="${cid1}"]`) return nativeRow1;
+        return null;
+      },
+      querySelectorAll: (sel) => (sel === '[data-testid="conversation-row-sidebar"]' ? [nativeRow1, nativeRowOdd] : []),
+      createTreeWalker: () => ({ nextNode: () => false }),
+      addEventListener() {},
+      removeEventListener() {}
+    },
+    localStorage: { getItem: () => null, setItem() {} },
+    NodeFilter: { SHOW_ELEMENT: 1, SHOW_TEXT: 4, FILTER_ACCEPT: 1, FILTER_REJECT: 2, FILTER_SKIP: 3 },
+    MutationObserver: class {
+      constructor(cb) { this.cb = cb; this.target = null; observers.push(this); }
+      observe(t) { this.target = t; }
+      disconnect() { this.target = null; }
+    },
+    Intl,
+    setTimeout(fn, ms) {
+      const id = nextTimerId++;
+      activeTimeouts.set(id, { fn, ms });
+      return id;
+    },
+    clearTimeout(id) { activeTimeouts.delete(id); },
+    setInterval: () => 1,
+    clearInterval() {},
+    requestAnimationFrame(fn) {
+      rafScheduleCount += 1;
+      const id = nextRafId++;
+      activeRafs.set(id, fn);
+      if (autoFlushRaf) {
+        activeRafs.delete(id);
+        fn();
+      }
+      return id;
+    },
+    cancelAnimationFrame(id) { activeRafs.delete(id); },
+    addEventListener() {},
+    removeEventListener() {},
+    __agRequestActivityPreviews(raw) { previewRequests.push(JSON.parse(raw)); },
+    __AG_BOOT_PAYLOAD__: {
+      version: '1.4.4-pr20',
+      platform: 'darwin',
+      enabled: true,
+      preset: 'codex-dark',
+      cssText: '',
+      customCss: '',
+      themeVars: {},
+      i18nDict: {},
+      modules: { theme: false, i18n: false, metrics: false, quota: false, quotaSidebar: false, activityView: true },
+      activityView: { showPriority: true, showPinned: false, showScheduled: false, unreadOnly: false },
+      selectors: {},
+      userConfig: { modules: { activityView: true } },
+      customJs: ''
+    }
+  };
+  sandbox.window = sandbox;
+  sandbox.top = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(`const __AG_BOOT_PAYLOAD__ = globalThis.__AG_BOOT_PAYLOAD__;\n${code}`, sandbox);
+
+  // 1. Closed fast scan sets attention dot WITHOUT creating #ag-activity-view panel
+  const toggleBtn = elementsById.get('ag-activity-toggle-btn');
+  assert.ok(toggleBtn && toggleBtn.innerHTML.includes('ag-av-toggle-dot'));
+  assert.equal(elementsById.get('ag-activity-view'), undefined, 'Closed fast scan should not mount panel DOM');
+
+  // 2. Unrelated Redux dispatches (e.g. typing in inputDrafts) skip scheduleRender in O(1)
+  const rafBefore = rafScheduleCount;
+  for (let i = 0; i < 20; i++) {
+    storeState.inputDrafts = { text: 'typing ' + i };
+    for (const sub of subscribers) sub();
+  }
+  assert.equal(rafScheduleCount, rafBefore, 'Unrelated Redux slices must not schedule any render');
+
+  // 3. Open Activity View, click Show more (visibleLimit -> 20), click cid1 (held read in Priority), then trigger Rename -> state preserved!
+  sandbox.__ag_set_activity_view_open(true);
+  const panel = elementsById.get('ag-activity-view');
+  assert.equal(previewRequests.length, 1);
+
+  // Deliver sqliteAvailable: false -> stops ALL future preview RPC requests!
+  sandbox.__ag_on_activity_previews(previewRequests[0].reqId, { ok: true, sqliteAvailable: false, previews: {} });
+  panel.dispatch('click', { target: { closest: (s) => (s === '.ag-av-more-btn' ? {} : null) } });
+  assert.equal(sandbox.__ag_get_activity_view_state().visibleLimit, 20);
+  assert.equal(previewRequests.length, 1, 'No further preview RPCs may fire after sqliteAvailable === false');
+
+  // Click cid1 to mark read & keep held in Priority (revealing Clear read chats)
+  panel.dispatch('click', {
+    target: {
+      closest: (s) =>
+        s === '.ag-av-card[data-cascade-id]'
+          ? { getAttribute: (k) => (k === 'data-cascade-id' ? cid1 : k === 'data-mod-sec' ? String(nowSec - 10) : null) }
+          : null
+    }
+  });
+  assert.ok(panel.innerHTML.includes('ag-activity-clear-read-btn'));
+
+  // Trigger right-click -> Rename -> finish Rename: visibleLimit (20) AND held Priority card MUST be preserved!
+  panel.dispatch('contextmenu', {
+    clientX: 100,
+    clientY: 200,
+    preventDefault() {},
+    stopPropagation() {},
+    target: { closest: (s) => (s === '.ag-av-card[data-cascade-id]' ? { getAttribute: (k) => (k === 'data-cascade-id' ? cid1 : null) } : null) }
+  });
+  const rowObs = observers.find((o) => o.target === nativeRow1);
+  renameInput = { focus() {}, select() {} };
+  rowObs.cb();
+  assert.equal(docAttrs.get('data-ag-activity-open'), undefined);
+  renameInput = null;
+  rowObs.cb();
+  assert.equal(docAttrs.get('data-ag-activity-open'), 'true');
+  assert.equal(sandbox.__ag_get_activity_view_state().visibleLimit, 20, 'Rename must preserve visibleLimit pagination');
+  assert.ok(panel.innerHTML.includes('ag-activity-clear-read-btn'), 'Rename must preserve held-read Priority state');
+
+  // 4. Safe non-UUID cid navigation does not throw invalid selector error and clicks matching native row link
+  panel.dispatch('click', {
+    target: {
+      closest: (s) =>
+        s === '.ag-av-card[data-cascade-id]'
+          ? { getAttribute: (k) => (k === 'data-cascade-id' ? cidOdd : k === 'data-mod-sec' ? '0' : null) }
+          : null
+    }
+  });
+  assert.equal(oddLinkClicked, true, 'Non-UUID cid navigation must safely traverse rows instead of interpolating raw selector');
+
+  // 5. Cleanup cancels pending rAF cleanly
+  autoFlushRaf = false;
+  storeState.trajectorySummaries = { ...storeState.trajectorySummaries };
+  for (const sub of subscribers) sub();
+  assert.equal(activeRafs.size, 1, 'Pending rAF should be queued before cleanup');
+  for (const fn of sandbox.__ag_cleanup_fns) fn();
+  assert.equal(activeRafs.size, 0, 'Cleanup must cancel pending requestAnimationFrame');
+  assert.equal(activeTimeouts.size, 0, 'Cleanup must clear all pending timeouts');
+
+  // 6. Cleanup also explicitly clears active 6s preview request timeouts while in-flight
+  const inflightTimeouts = new Map();
+  let inflightTimerSeq = 1;
+  const sb2Elements = new Map();
+  const makeMiniEl = (tag, id = '') => {
+    const attrs = new Map();
+    const el = {
+      tagName: tag.toUpperCase(),
+      get id() { return attrs.get('id') || ''; },
+      set id(v) { attrs.set('id', String(v)); if (v) sb2Elements.set(String(v), el); },
+      hidden: false, scrollTop: 0, innerHTML: '', textContent: '', style: {}, parentElement: null, parentNode: null, children: [],
+      setAttribute(k, v) { if (k === 'id') this.id = v; else attrs.set(k, String(v)); },
+      getAttribute(k) { return attrs.has(k) ? attrs.get(k) : null; },
+      hasAttribute(k) { return attrs.has(k); },
+      removeAttribute(k) { attrs.delete(k); },
+      appendChild(c) { c.parentElement = el; c.parentNode = el; el.children.push(c); return c; },
+      insertBefore(c) { c.parentElement = el; c.parentNode = el; el.children.push(c); return c; },
+      remove() { if (this.id) sb2Elements.delete(this.id); },
+      addEventListener() {}, querySelector: () => null, querySelectorAll: () => []
+    };
+    if (id) el.id = id;
+    return el;
+  };
+  const h2 = makeMiniEl('head');
+  const b2 = makeMiniEl('body');
+  const hdr2 = makeMiniEl('div');
+  const sBtn2 = makeMiniEl('button');
+  sBtn2.setAttribute('data-testid', 'sidebar-search-button');
+  hdr2.appendChild(sBtn2);
+  const lp2 = makeMiniEl('div');
+  const l2 = makeMiniEl('div');
+  l2.setAttribute('data-testid', 'conversation-list-sidebar');
+  l2.__reactFiber$test = { memoizedProps: { value: { store: { getState: () => storeState, subscribe: () => () => {} } } }, return: null };
+  lp2.appendChild(l2);
+  const sb2 = {
+    location: { pathname: '/', href: 'https://127.0.0.1/', search: '' },
+    navigator: { platform: 'MacIntel', onLine: true },
+    history: { pushState() {}, replaceState() {} },
+    document: {
+      head: h2, body: b2, hidden: false,
+      documentElement: { style: { removeProperty() {} }, setAttribute() {}, getAttribute: () => null, removeAttribute() {} },
+      getElementById: (id) => sb2Elements.get(id) || null,
+      createElement: (t) => makeMiniEl(t),
+      getElementsByTagName: (t) => (t === 'head' ? [h2] : []),
+      querySelector: (s) => (s === '[data-testid="sidebar-search-button"]' ? sBtn2 : s === '[data-testid="conversation-list-sidebar"]' ? l2 : null),
+      querySelectorAll: () => [],
+      createTreeWalker: () => ({ nextNode: () => false }),
+      addEventListener() {}, removeEventListener() {}
+    },
+    localStorage: { getItem: () => null, setItem() {} },
+    NodeFilter: { SHOW_ELEMENT: 1, SHOW_TEXT: 4, FILTER_ACCEPT: 1, FILTER_REJECT: 2, FILTER_SKIP: 3 },
+    MutationObserver: class { observe() {} disconnect() {} },
+    Intl,
+    setTimeout(fn, ms) {
+      const id = inflightTimerSeq++;
+      inflightTimeouts.set(id, { fn, ms });
+      return id;
+    },
+    clearTimeout(id) { inflightTimeouts.delete(id); },
+    setInterval: () => 1,
+    clearInterval() {},
+    requestAnimationFrame: (fn) => { fn(); return 1; },
+    cancelAnimationFrame() {},
+    addEventListener() {},
+    removeEventListener() {},
+    __agRequestActivityPreviews() {},
+    __AG_BOOT_PAYLOAD__: {
+      version: '1.4.4-pr20-inflight',
+      platform: 'darwin',
+      enabled: true,
+      preset: 'codex-dark',
+      cssText: '', customCss: '', themeVars: {}, i18nDict: {},
+      modules: { theme: false, i18n: false, metrics: false, quota: false, quotaSidebar: false, activityView: true },
+      activityView: { showPriority: true, showPinned: false, showScheduled: false, unreadOnly: false },
+      selectors: {},
+      userConfig: { modules: { activityView: true } },
+      customJs: ''
+    }
+  };
+  sb2.window = sb2;
+  sb2.top = sb2;
+  vm.createContext(sb2);
+  vm.runInContext(`const __AG_BOOT_PAYLOAD__ = globalThis.__AG_BOOT_PAYLOAD__;\n${code}`, sb2);
+  sb2.__ag_set_activity_view_open(true);
+  assert.ok(
+    Array.from(inflightTimeouts.values()).some((t) => t.ms === 6000),
+    'Opening Activity View must register a 6000ms pending preview timeout while RPC is in-flight'
+  );
+  for (const fn of sb2.__ag_cleanup_fns) fn();
+  assert.equal(inflightTimeouts.size, 0, 'Cleanup must clear every pending 6000ms preview timeout');
+});
+
+test('cdp-bridge __agRequestActivityPreviews guard replies immediately when reader missing or module disabled, and forwards sqliteAvailable=false', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ag-cdp-av-guard-'));
+  const portFile = path.join(tmpDir, 'DevToolsActivePort');
+  let targetList = [];
+
+  const server = http.createServer((req, res) => {
+    if (req.url === '/json/list') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(targetList));
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  fs.writeFileSync(portFile, `${port}\n/devtools/browser/test\n`, 'utf8');
+
+  const socketsByUrl = new Map();
+  const OrigWebSocket = globalThis.WebSocket;
+
+  class FakeWebSocket {
+    static OPEN = 1;
+    static CLOSED = 3;
+    constructor(url) {
+      this.url = url;
+      this.readyState = FakeWebSocket.OPEN;
+      this.listeners = new Map();
+      this.evalExpressions = [];
+      socketsByUrl.set(url, this);
+      queueMicrotask(() => this._emit('open', {}));
+    }
+    addEventListener(type, fn) {
+      if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+      this.listeners.get(type).add(fn);
+    }
+    _emit(type, evt) {
+      const fns = this.listeners.get(type);
+      if (!fns) return;
+      for (const fn of [...fns]) fn(evt);
+    }
+    emitCdpEvent(payload) {
+      this._emit('message', { data: JSON.stringify(payload) });
+    }
+    send(raw) {
+      const req = JSON.parse(raw);
+      if (req.method === 'Runtime.evaluate') {
+        this.evalExpressions.push(String(req.params?.expression || ''));
+      }
+      queueMicrotask(() => {
+        if (this.readyState !== FakeWebSocket.OPEN) return;
+        let result = {};
+        if (req.method === 'Runtime.evaluate') {
+          const expr = String(req.params?.expression || '');
+          if (expr.includes('window.__APP_CONFIG__')) result = { result: { value: true } };
+          else if (expr.includes('data-ag-theme-mode')) result = { result: { value: 'dark' } };
+          else result = { result: { value: true } };
+        } else if (req.method === 'Page.addScriptToEvaluateOnNewDocument') {
+          result = { identifier: `doc-${req.id}` };
+        }
+        this._emit('message', { data: JSON.stringify({ id: req.id, result }) });
+      });
+    }
+    close() {
+      if (this.readyState === FakeWebSocket.CLOSED) return;
+      this.readyState = FakeWebSocket.CLOSED;
+      this._emit('close', {});
+    }
+  }
+
+  const waitUntil = async (pred, timeoutMs = 1500) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (pred()) return;
+      await new Promise((r) => setTimeout(r, 15));
+    }
+    assert.fail(`Timed out waiting for condition after ${timeoutMs}ms`);
+  };
+
+  let manager1 = null;
+  let manager2 = null;
+  try {
+    globalThis.WebSocket = FakeWebSocket;
+    const hostWsUrl = `ws://127.0.0.1:${port}/devtools/page/HOST_AV_1`;
+    targetList = [
+      {
+        id: 'HOST_AV_1',
+        type: 'page',
+        title: 'Antigravity',
+        url: `https://127.0.0.1:${port}/c/conv-1`,
+        webSocketDebuggerUrl: hostWsUrl
+      }
+    ];
+
+    let activityViewEnabled = false;
+    const makeBundleCtrl = () => ({
+      rebuildBundleIfNeeded: () => false,
+      getState: () => ({
+        cachedInjectScript: 'window.__ag_test = 1;',
+        cachedPatchVersion: '1.4.4-test',
+        activeConfig: {
+          enabled: true,
+          allowedOrigins: ['http://127.0.0.1', 'https://127.0.0.1'],
+          modules: { metrics: false, sshRemote: false, promptSuggestions: false, activityView: activityViewEnabled },
+          endpoints: [
+            {
+              channel: 'stable',
+              portFile,
+              fallbackPort: null,
+              channelInstalled: true,
+              conversationsDir: tmpDir,
+              lsLogFile: ''
+            }
+          ]
+        }
+      })
+    });
+
+    // 1. No activityPreviewReader -> immediate guard reply with ok:false, sqliteAvailable:false
+    manager1 = createCdpManager({
+      bundleCtrl: makeBundleCtrl(),
+      metricsReader: { parseConversationMetrics: () => null },
+      activityPreviewReader: null,
+      hasSqlite: () => false,
+      runOnce: false,
+      safeMode: true
+    });
+    await manager1.sync();
+    const ws1 = socketsByUrl.get(hostWsUrl);
+    assert.ok(ws1);
+    ws1.emitCdpEvent({
+      method: 'Runtime.bindingCalled',
+      params: {
+        name: '__agRequestActivityPreviews',
+        payload: JSON.stringify({ reqId: 'req-no-reader', cascadeIds: ['11111111-1111-1111-1111-111111111111'] })
+      }
+    });
+    await waitUntil(() => ws1.evalExpressions.some((e) => e.includes('"req-no-reader"')));
+    const reply1 = ws1.evalExpressions.find((e) => e.includes('"req-no-reader"'));
+    assert.ok(reply1.includes('"ok":false'));
+    assert.ok(reply1.includes('"sqliteAvailable":false'));
+    assert.ok(reply1.includes('"previews":{}'));
+    manager1.closeAll();
+    manager1 = null;
+
+    // 2. Reader present (Node < 22.13, getDatabaseSync -> null):
+    //    (a) when module disabled -> guard replies ok:false, sqliteAvailable:true
+    //    (b) when module enabled -> reader replies ok:true, sqliteAvailable:false
+    socketsByUrl.clear();
+    const noSqliteReader = createActivityPreviewReader({ getDatabaseSync: () => null });
+    manager2 = createCdpManager({
+      bundleCtrl: makeBundleCtrl(),
+      metricsReader: { parseConversationMetrics: () => null },
+      activityPreviewReader: noSqliteReader,
+      hasSqlite: () => false,
+      runOnce: false,
+      safeMode: true
+    });
+    await manager2.sync();
+    const ws2 = socketsByUrl.get(hostWsUrl);
+    assert.ok(ws2);
+
+    ws2.emitCdpEvent({
+      method: 'Runtime.bindingCalled',
+      params: {
+        name: '__agRequestActivityPreviews',
+        payload: JSON.stringify({ reqId: 'req-disabled', cascadeIds: ['11111111-1111-1111-1111-111111111111'] })
+      }
+    });
+    await waitUntil(() => ws2.evalExpressions.some((e) => e.includes('"req-disabled"')));
+    const replyDisabled = ws2.evalExpressions.find((e) => e.includes('"req-disabled"'));
+    assert.ok(replyDisabled.includes('"ok":false'));
+    assert.ok(replyDisabled.includes('"previews":{}'));
+
+    activityViewEnabled = true;
+    ws2.emitCdpEvent({
+      method: 'Runtime.bindingCalled',
+      params: {
+        name: '__agRequestActivityPreviews',
+        payload: JSON.stringify({ reqId: 'req-no-sqlite', cascadeIds: ['11111111-1111-1111-1111-111111111111'] })
+      }
+    });
+    await waitUntil(() => ws2.evalExpressions.some((e) => e.includes('"req-no-sqlite"')));
+    const replyNoSqlite = ws2.evalExpressions.find((e) => e.includes('"req-no-sqlite"'));
+    assert.ok(replyNoSqlite.includes('"ok":true'));
+    assert.ok(replyNoSqlite.includes('"sqliteAvailable":false'));
+    assert.ok(replyNoSqlite.includes('"previews":{}'));
+  } finally {
+    if (manager1) manager1.closeAll();
+    if (manager2) manager2.closeAll();
+    globalThis.WebSocket = OrigWebSocket;
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });

@@ -945,21 +945,35 @@ export function createCdpManager({
               return;
             }
             if (msg.method === 'Runtime.bindingCalled' && msg.params?.name === '__agRequestActivityPreviews') {
-              const { activeConfig } = bundleCtrl.getState();
-              if (
-                isSwarmIframe ||
-                !hostConfirmed ||
-                !activityPreviewReader ||
-                !activeConfig.enabled ||
-                !activeConfig.modules?.activityView
-              ) {
-                return;
-              }
+              if (isSwarmIframe || !hostConfirmed) return;
               let req = {};
               try {
                 req = msg.params.payload ? JSON.parse(String(msg.params.payload)) : {};
               } catch {}
               const reqId = String(req?.reqId || '');
+              const replyActivityPreviews = async (outObj) => {
+                if (ws.readyState !== WebSocket.OPEN) return;
+                const payloadJson = JSON.stringify(outObj)
+                  .replace(/\u2028/g, '\\u2028')
+                  .replace(/\u2029/g, '\\u2029');
+                try {
+                  await send('Runtime.evaluate', {
+                    expression: `if (typeof window.__ag_on_activity_previews === 'function') { window.__ag_on_activity_previews(${JSON.stringify(reqId)}, ${payloadJson}); }`,
+                    returnByValue: false
+                  });
+                } catch {}
+              };
+              const { activeConfig } = bundleCtrl.getState();
+              if (!activityPreviewReader || !activeConfig.enabled || !activeConfig.modules?.activityView) {
+                if (reqId) {
+                  void replyActivityPreviews({
+                    ok: false,
+                    sqliteAvailable: Boolean(activityPreviewReader),
+                    previews: {}
+                  });
+                }
+                return;
+              }
               const cascadeIds = Array.isArray(req?.cascadeIds) ? req.cascadeIds : [];
               void (async () => {
                 let out;
@@ -968,17 +982,7 @@ export function createCdpManager({
                 } catch (err) {
                   out = { ok: false, previews: {}, error: err?.message || String(err || 'preview read failed') };
                 }
-                if (ws.readyState === WebSocket.OPEN) {
-                  const payloadJson = JSON.stringify(out)
-                    .replace(/\u2028/g, '\\u2028')
-                    .replace(/\u2029/g, '\\u2029');
-                  try {
-                    await send('Runtime.evaluate', {
-                      expression: `if (typeof window.__ag_on_activity_previews === 'function') { window.__ag_on_activity_previews(${JSON.stringify(reqId)}, ${payloadJson}); }`,
-                      returnByValue: false
-                    });
-                  } catch {}
-                }
+                await replyActivityPreviews(out);
               })();
               return;
             }

@@ -153,8 +153,7 @@
     if (item.hasError || item.interrupted) {
       return 'error';
     }
-    // Match Codex Desktop (JHLi -> Ypxi.Kq): active/working takes precedence over unread
-    // so running or background-task sessions never display the blue completed/unread dot.
+    // Active/working sessions take precedence over unread so running or background-task chats never display the blue completed/unread dot.
     if (item.isActive) {
       return 'active';
     }
@@ -446,6 +445,7 @@
       const PREFS_STORAGE_KEY = 'ag-activity-view-prefs-v1';
       const READ_TIMES_STORAGE_KEY = 'ag-activity-read-times-v1';
       const MANUAL_UNREAD_STORAGE_KEY = 'ag-activity-manual-unread-v1';
+      const AG_ACTIVITY_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const PAGE_STEP = 10;
 
       const platformStr = String(boot.platform || (typeof navigator !== 'undefined' ? navigator.platform : '') || '');
@@ -455,11 +455,13 @@
       let disposed = false;
       let isOpen = Boolean(window.__ag_activity_open);
       let optionsOpen = false;
+      let menuMode = '';
       let visibleLimit = PAGE_STEP;
       let heldPriorityIds = new Set();
       let clearedReadIds = new Set();
       let previewCache = new Map();
       let previewInFlight = new Set();
+      let previewsUnavailable = false;
       let previewReqSeq = 0;
       const pendingPreviewReqs = new Map();
       const prevServerUnread = new Map();
@@ -467,9 +469,12 @@
 
       let cachedStore = null;
       let storeUnsub = null;
+      let lastStoreSlices = null;
       let cachedRouter = null;
       let cachedPms = null;
       let renderScheduled = false;
+      let renderRafId = null;
+      let renderFallbackTimer = null;
       let obsTimer = null;
       let pollTimer = null;
       let tooltipHideTimer = null;
@@ -664,12 +669,48 @@
         }
       }
 
+      function readRelevantStoreSlices(st) {
+        if (!st || typeof st !== 'object') return null;
+        return {
+          trajectorySummaries: st.trajectorySummaries,
+          localLastViewedTimes: st.conversation ? st.conversation.localLastViewedTimes : undefined,
+          selectedCascadeId:
+            st.conversation && st.conversation.convoState ? st.conversation.convoState.cascadeId : undefined,
+          sidebarProjects: st.sidebarProjects,
+          sidebarIsOpen: st.sideBar ? st.sideBar.isOpen : undefined
+        };
+      }
+
+      function didRelevantStoreSlicesChange(st) {
+        const next = readRelevantStoreSlices(st);
+        if (!next) return true;
+        const prev = lastStoreSlices;
+        lastStoreSlices = next;
+        if (!prev) return true;
+        return (
+          next.trajectorySummaries !== prev.trajectorySummaries ||
+          next.localLastViewedTimes !== prev.localLastViewedTimes ||
+          next.selectedCascadeId !== prev.selectedCascadeId ||
+          next.sidebarProjects !== prev.sidebarProjects ||
+          next.sidebarIsOpen !== prev.sidebarIsOpen
+        );
+      }
+
       function ensureStoreSubscription() {
         if (!cachedStore || !cachedRouter) walkFibersForContext();
         if (cachedStore && !storeUnsub && typeof cachedStore.subscribe === 'function') {
           try {
+            if (typeof cachedStore.getState === 'function') {
+              lastStoreSlices = readRelevantStoreSlices(cachedStore.getState());
+            }
             storeUnsub = cachedStore.subscribe(() => {
-              if (!disposed) scheduleRender();
+              if (disposed) return;
+              if (cachedStore && typeof cachedStore.getState === 'function') {
+                try {
+                  if (!didRelevantStoreSlicesChange(cachedStore.getState())) return;
+                } catch {}
+              }
+              scheduleRender();
             });
           } catch {}
         }
@@ -881,16 +922,17 @@
       /* ---------------- Daemon SQLite Preview Bridge ---------------- */
       const onActivityPreviews = (reqId, payload) => {
         if (disposed) return;
-        const cb = pendingPreviewReqs.get(reqId);
-        if (cb) {
+        const rec = pendingPreviewReqs.get(reqId);
+        if (rec) {
           pendingPreviewReqs.delete(reqId);
-          cb(payload);
+          if (rec.timer) clearTimeout(rec.timer);
+          rec.cb(payload);
         }
       };
       window.__ag_on_activity_previews = onActivityPreviews;
 
       function requestDaemonPreviews(cascadeItems, force) {
-        if (disposed || typeof window.__agRequestActivityPreviews !== 'function') return;
+        if (disposed || previewsUnavailable || typeof window.__agRequestActivityPreviews !== 'function') return;
         const toFetch = [];
         const modSecByCid = new Map();
         for (let i = 0; i < cascadeItems.length; i++) {
@@ -916,14 +958,20 @@
           for (let i = 0; i < toFetch.length; i++) previewInFlight.delete(toFetch[i]);
         }, 6000);
 
-        pendingPreviewReqs.set(reqId, (payload) => {
-          clearTimeout(timer);
+        const cb = (payload) => {
           for (let i = 0; i < toFetch.length; i++) previewInFlight.delete(toFetch[i]);
-          if (disposed || !payload || !payload.previews) return;
+          if (disposed || !payload) return;
+          if (payload.sqliteAvailable === false) {
+            previewsUnavailable = true;
+            return;
+          }
+          if (!payload.previews) return;
           let changed = false;
+          const returnedIds = new Set();
           const entries = Object.entries(payload.previews);
           for (let i = 0; i < entries.length; i++) {
             const [cid, data] = entries[i];
+            returnedIds.add(cid);
             const prev = previewCache.get(cid);
             const nextText = typeof data?.text === 'string' ? data.text : '';
             const nextErr = Boolean(data?.hasError);
@@ -936,11 +984,27 @@
               previewCache.set(cid, { text: prev.text, hasError: prev.hasError, sig: prev.sig, modSec: nextModSec });
             }
           }
+          if (payload.ok === true) {
+            for (let i = 0; i < toFetch.length; i++) {
+              const cid = toFetch[i];
+              if (!returnedIds.has(cid)) {
+                const prev = previewCache.get(cid);
+                const nextModSec = Math.max(Number(modSecByCid.get(cid) || 0), Number(prev?.modSec || 0));
+                if (!prev) {
+                  previewCache.set(cid, { text: '', hasError: false, sig: '', modSec: nextModSec });
+                } else if (nextModSec > (prev.modSec || 0)) {
+                  previewCache.set(cid, { text: prev.text, hasError: prev.hasError, sig: prev.sig, modSec: nextModSec });
+                }
+              }
+            }
+          }
           if (changed) {
             lastRenderSig = '';
             scheduleRender();
           }
-        });
+        };
+
+        pendingPreviewReqs.set(reqId, { cb, timer });
 
         try {
           window.__agRequestActivityPreviews(JSON.stringify({ reqId, cascadeIds: toFetch }));
@@ -969,9 +1033,8 @@
 
         // 2. Fallback: click native sidebar row link if present in DOM
         try {
-          const nativeLink = document.querySelector(
-            `[data-testid="conversation-row-sidebar"][data-cascade-id="${cid}"] a[href]`
-          );
+          const nativeRow = findNativeConversationRow(cid);
+          const nativeLink = nativeRow && nativeRow.querySelector ? nativeRow.querySelector('a[href]') : null;
           if (nativeLink && typeof nativeLink.click === 'function') {
             nativeLink.click();
             lastRenderSig = '';
@@ -1033,8 +1096,8 @@
             }
             restoreActivityAfterRename = isOpen;
             if (isOpen) {
-              // Temporarily reveal native sidebar so Antigravity's inline rename input is visible and editable
-              setActivityOpen(false);
+              // Temporarily reveal native sidebar while preserving pagination & held-read Priority state
+              setActivityOpen(false, { preserveSessionState: true });
             }
             const focusRename = () => {
               if (disposed) return;
@@ -1057,7 +1120,7 @@
             restoreActivityAfterRename = false;
             stop();
             if (shouldRestore && !disposed && !isOpen) {
-              setActivityOpen(true);
+              setActivityOpen(true, { preserveSessionState: true });
             }
           }
         };
@@ -1076,21 +1139,25 @@
       }
 
       function findNativeConversationRow(cid) {
-        if (!cid || typeof document === 'undefined' || !document.querySelectorAll) return null;
-        try {
-          const direct = document.querySelector(
-            `[data-testid="conversation-row-sidebar"][data-cascade-id="${cid}"]`
-          );
-          if (direct) return direct;
-        } catch {}
-        try {
-          const rows = document.querySelectorAll('[data-testid="conversation-row-sidebar"]');
-          for (let i = 0; i < rows.length; i++) {
-            if (rows[i].getAttribute && rows[i].getAttribute('data-cascade-id') === cid) {
-              return rows[i];
+        if (!cid || typeof document === 'undefined') return null;
+        if (AG_ACTIVITY_UUID_RE.test(cid) && typeof document.querySelector === 'function') {
+          try {
+            const direct = document.querySelector(
+              `[data-testid="conversation-row-sidebar"][data-cascade-id="${cid}"]`
+            );
+            if (direct) return direct;
+          } catch {}
+        }
+        if (typeof document.querySelectorAll === 'function') {
+          try {
+            const rows = document.querySelectorAll('[data-testid="conversation-row-sidebar"]');
+            for (let i = 0; i < rows.length; i++) {
+              if (rows[i].getAttribute && rows[i].getAttribute('data-cascade-id') === cid) {
+                return rows[i];
+              }
             }
-          }
-        } catch {}
+          } catch {}
+        }
         return null;
       }
 
@@ -1107,6 +1174,9 @@
         if (!menu) return;
         hideTooltip();
         optionsOpen = true;
+        menuMode = 'context';
+        const optBtn = document.getElementById('ag-activity-options-btn');
+        if (optBtn) optBtn.setAttribute('aria-expanded', 'false');
         menu.innerHTML =
           '<button type="button" class="ag-av-menu-item" role="menuitem" data-av-act="ctx-open" data-av-cid="' +
           escHtml(cid) +
@@ -1222,7 +1292,7 @@
       const SVG_MARK_READ =
         '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3.4" stroke="currentColor" stroke-width="1.5"/></svg>';
 
-      // Authentic Codex Desktop working spinner (FyDI / RNul — neutral gray rotating arc, never blue)
+      // Neutral gray rotating arc spinner for active/working sessions (distinct from the blue unread dot)
       const SVG_WORKING_SPINNER =
         '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
         '<path opacity="0.28" d="M18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18C15.3137 18 18 15.3137 18 12ZM20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4C16.4183 4 20 7.58172 20 12Z" fill="currentColor"/>' +
@@ -1281,6 +1351,7 @@
       /* ---------------- Options Popover Menu ---------------- */
       function closeOptionsMenu() {
         optionsOpen = false;
+        menuMode = '';
         const menu = document.getElementById('ag-activity-options-menu');
         if (menu) menu.hidden = true;
         const btn = document.getElementById('ag-activity-options-btn');
@@ -1339,7 +1410,7 @@
             }
             lastRenderSig = '';
             renderNow();
-            if (optionsOpen) renderOptionsMenuContent();
+            if (optionsOpen && menuMode === 'options') renderOptionsMenuContent();
           });
           document.body.appendChild(menu);
         }
@@ -1402,12 +1473,13 @@
         if (!anchorBtn) return;
         const menu = ensureOptionsMenu();
         if (!menu) return;
-        if (optionsOpen && !menu.hidden) {
+        if (optionsOpen && menuMode === 'options' && !menu.hidden) {
           closeOptionsMenu();
           return;
         }
         hideTooltip();
         optionsOpen = true;
+        menuMode = 'options';
         renderOptionsMenuContent();
         menu.hidden = false;
         anchorBtn.setAttribute('aria-expanded', 'true');
@@ -1494,9 +1566,10 @@
         return false;
       }
 
-      function setActivityOpen(nextOpen) {
+      function setActivityOpen(nextOpen, opts = null) {
         if (disposed) return;
         const targetOpen = Boolean(nextOpen);
+        const preserveSessionState = Boolean(opts && opts.preserveSessionState);
         if (targetOpen && isOpen && isSidebarCollapsed()) {
           expandSidebarIfCollapsed();
           lastRenderSig = '';
@@ -1511,17 +1584,19 @@
         hideTooltip();
 
         if (isOpen) {
-          visibleLimit = PAGE_STEP;
-          clearedReadIds = new Set();
+          if (!preserveSessionState) {
+            visibleLimit = PAGE_STEP;
+            clearedReadIds = new Set();
+            heldPriorityIds = new Set();
+          }
           const { items } = collectConversations();
-          heldPriorityIds = new Set();
           for (let i = 0; i < items.length; i++) {
             const st = classifyConversationAttention(items[i]);
             if (st !== 'idle') heldPriorityIds.add(items[i].id);
           }
           // If Antigravity's sidebar is currently collapsed, expand it so Activity View is visible
           expandSidebarIfCollapsed();
-        } else {
+        } else if (!preserveSessionState) {
           heldPriorityIds = new Set();
           clearedReadIds = new Set();
         }
@@ -1554,7 +1629,7 @@
         writeJsonStorage(PREFS_STORAGE_KEY, prefs);
         lastRenderSig = '';
         scheduleRender();
-        if (optionsOpen) renderOptionsMenuContent();
+        if (optionsOpen && menuMode === 'options') renderOptionsMenuContent();
       };
       const getActivityViewState = () => ({
         open: isOpen,
@@ -1716,6 +1791,118 @@
         return panel;
       }
 
+      /* ---------------- Lightweight Closed-State Attention Scan ---------------- */
+      function computeClosedAttentionFast() {
+        ensureStoreSubscription();
+        if (cachedStore && typeof cachedStore.getState === 'function') {
+          try {
+            const st = cachedStore.getState() || {};
+            const ts = st.trajectorySummaries || {};
+            const summaries = ts.summaries || {};
+            const idx = ts.indexes || {};
+            const topLevelKeys =
+              idx.topLevel && typeof idx.topLevel === 'object'
+                ? Object.keys(idx.topLevel)
+                : Object.keys(summaries);
+            const activeMap = idx.active || {};
+            const archivedMap = idx.archived || {};
+            const serverUnreadMap = idx.serverUnread || {};
+            const waitingMap = idx.hasWaitingSteps || {};
+            const localViews = (st.conversation && st.conversation.localLastViewedTimes) || {};
+            const selectedCid = getCurrentSelectedCascadeId(st);
+
+            let foundAttention = false;
+            let readTimesDirty = false;
+            let manualUnreadDirty = false;
+            for (let i = 0; i < topLevelKeys.length; i++) {
+              const id = topLevelKeys[i];
+              const s = summaries[id];
+              if (!s || typeof s !== 'object') continue;
+              const curSrvUnread = Boolean(serverUnreadMap[id]);
+              if (prevServerUnread.has(id)) {
+                const wasSrvUnread = prevServerUnread.get(id);
+                if (!wasSrvUnread && curSrvUnread && Object.prototype.hasOwnProperty.call(localReadTimes, id)) {
+                  delete localReadTimes[id];
+                  readTimesDirty = true;
+                } else if (wasSrvUnread && !curSrvUnread && Object.prototype.hasOwnProperty.call(manualUnreadMap, id)) {
+                  delete manualUnreadMap[id];
+                  manualUnreadDirty = true;
+                }
+              }
+              prevServerUnread.set(id, curSrvUnread);
+              if (foundAttention) continue;
+              if (archivedMap[id]) continue;
+              const isScheduled = Boolean(
+                Number(s.source) === 2 ||
+                  (s.annotations && Array.isArray(s.annotations.tags) && s.annotations.tags.includes('scheduled'))
+              );
+              if (isScheduled && !prefs.showScheduled) continue;
+
+              const waitingCount = Array.isArray(s.waitingSteps) ? s.waitingSteps.length : 0;
+              const openCardCount = Number(s.openCardCount || 0);
+              if (waitingMap[id] || waitingCount > 0 || openCardCount > 0) {
+                foundAttention = true;
+                continue;
+              }
+              const previewRec = previewCache.get(id) || null;
+              if (s.interrupted || (previewRec && previewRec.hasError)) {
+                foundAttention = true;
+                continue;
+              }
+              const isActive = Boolean(
+                Number(s.status) === 2 ||
+                  s.hasActiveChildren ||
+                  s.hasRunningSubagents ||
+                  s.notFullyIdle ||
+                  s.hasActivity ||
+                  Number(s.backgroundTaskCount || 0) > 0 ||
+                  activeMap[id]
+              );
+              if (isActive) continue;
+              if (manualUnreadMap[id]) {
+                foundAttention = true;
+                continue;
+              }
+              if (id === selectedCid) continue;
+              const modMs = parseActivityTimestampMs(s.lastModifiedTime) || parseActivityTimestampMs(s.createdTime);
+              const modSec = modMs / 1000;
+              const pluginReadSec = Number(localReadTimes[id] || 0);
+              const locallyMarkedRead = pluginReadSec > 0 && (modSec <= 0 || pluginReadSec >= modSec + 0.5);
+              if (curSrvUnread && !locallyMarkedRead) {
+                foundAttention = true;
+                continue;
+              }
+              const serverViewSec = parseActivityTimestampMs(s.annotations && s.annotations.lastUserViewTime) / 1000;
+              const appLocalViewSec = parseActivityTimestampMs(localViews[id]) / 1000;
+              const effectiveViewSec = Math.max(serverViewSec, appLocalViewSec, pluginReadSec);
+              if (modSec > 0 && effectiveViewSec > 0 && modSec > effectiveViewSec + 1) {
+                foundAttention = true;
+              }
+            }
+            if (readTimesDirty) writeJsonStorage(READ_TIMES_STORAGE_KEY, localReadTimes);
+            if (manualUnreadDirty) writeJsonStorage(MANUAL_UNREAD_STORAGE_KEY, manualUnreadMap);
+            return foundAttention;
+          } catch {}
+        }
+        return Object.keys(manualUnreadMap || {}).length > 0;
+      }
+
+      function updateToggleButton(hasAnyAttention, s, isZh) {
+        const toggleBtn = ensureToggleButton();
+        if (!toggleBtn) return;
+        const toggleSig = `${isOpen}|${hasAnyAttention}|${isZh}`;
+        if (toggleSig !== lastToggleSig) {
+          lastToggleSig = toggleSig;
+          const label = isOpen ? s.turnOffActivityView : s.activityView;
+          toggleBtn.setAttribute('aria-label', label);
+          toggleBtn.setAttribute('aria-pressed', isOpen ? 'true' : 'false');
+          toggleBtn.setAttribute('data-active', isOpen ? 'true' : 'false');
+          toggleBtn.innerHTML =
+            SVG_FILTER +
+            (!isOpen && hasAnyAttention ? '<span class="ag-av-toggle-dot" aria-hidden="true"></span>' : '');
+        }
+      }
+
       /* ---------------- Render ---------------- */
       function renderNow() {
         if (disposed) return;
@@ -1730,16 +1917,21 @@
           }
         }
 
+        // Fast path when Activity View is closed: skip full collection, sorting, and daily grouping
+        if (!isOpen) {
+          const hasAnyAttention = computeClosedAttentionFast();
+          updateToggleButton(hasAnyAttention, s, isZh);
+          return;
+        }
+
         const { items } = collectConversations();
 
         // Merge newly arriving non-idle items into heldPriorityIds while open
-        if (isOpen) {
-          for (let i = 0; i < items.length; i++) {
-            const st = classifyConversationAttention(items[i]);
-            if (st !== 'idle') {
-              heldPriorityIds.add(items[i].id);
-              clearedReadIds.delete(items[i].id);
-            }
+        for (let i = 0; i < items.length; i++) {
+          const st = classifyConversationAttention(items[i]);
+          if (st !== 'idle') {
+            heldPriorityIds.add(items[i].id);
+            clearedReadIds.delete(items[i].id);
           }
         }
 
@@ -1753,33 +1945,21 @@
         });
         lastGroupedState = grouped;
 
-        const toggleBtn = ensureToggleButton();
-        if (toggleBtn) {
-          const toggleSig = `${isOpen}|${grouped.hasAnyAttention}|${isZh}`;
-          if (toggleSig !== lastToggleSig) {
-            lastToggleSig = toggleSig;
-            const label = isOpen ? s.turnOffActivityView : s.activityView;
-            toggleBtn.setAttribute('aria-label', label);
-            toggleBtn.setAttribute('aria-pressed', isOpen ? 'true' : 'false');
-            toggleBtn.setAttribute('data-active', isOpen ? 'true' : 'false');
-            toggleBtn.innerHTML =
-              SVG_FILTER +
-              (!isOpen && grouped.hasAnyAttention ? '<span class="ag-av-toggle-dot" aria-hidden="true"></span>' : '');
-          }
-        }
+        updateToggleButton(grouped.hasAnyAttention, s, isZh);
 
         const panel = ensurePanelContainer();
-        if (!panel || !isOpen) return;
+        if (!panel) return;
 
         // Request previews from daemon for currently visible cards (and immediately refresh if modSec advanced)
         if (grouped.visibleItems.length > 0) {
           requestDaemonPreviews(grouped.visibleItems, false);
         }
 
+        const optionsMenuOpen = Boolean(optionsOpen && menuMode === 'options');
         const renderSig = JSON.stringify({
           isZh,
           prefs,
-          optionsOpen,
+          optionsMenuOpen,
           hasHeldRead: grouped.hasHeldReadInPriority,
           hasMore: grouped.hasMore,
           sections: grouped.sections.map((sec) => ({
@@ -1806,7 +1986,7 @@
         const headerActionsHtml =
           '<div class="ag-av-hdr-actions">' +
           '<button type="button" id="ag-activity-options-btn" class="ag-av-icon-btn" aria-haspopup="menu" aria-expanded="' +
-          (optionsOpen ? 'true' : 'false') +
+          (optionsMenuOpen ? 'true' : 'false') +
           '" aria-label="' +
           escHtml(s.optionsLabel) +
           '" data-av-tip="' +
@@ -1991,13 +2171,15 @@
         if (disposed || renderScheduled) return;
         renderScheduled = true;
         const run = () => {
+          renderRafId = null;
+          renderFallbackTimer = null;
           renderScheduled = false;
           if (!disposed) renderNow();
         };
         if (typeof requestAnimationFrame === 'function') {
-          requestAnimationFrame(run);
+          renderRafId = requestAnimationFrame(run);
         } else {
-          setTimeout(run, 16);
+          renderFallbackTimer = setTimeout(run, 16);
         }
       }
 
@@ -2182,8 +2364,24 @@
             clearTimeout(tooltipHideTimer);
             tooltipHideTimer = null;
           }
+          if (renderRafId !== null) {
+            try {
+              if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(renderRafId);
+            } catch {}
+            renderRafId = null;
+          }
+          if (renderFallbackTimer !== null) {
+            clearTimeout(renderFallbackTimer);
+            renderFallbackTimer = null;
+          }
+          renderScheduled = false;
           clearRenameWatch();
+          for (const rec of pendingPreviewReqs.values()) {
+            if (rec && rec.timer) clearTimeout(rec.timer);
+          }
           pendingPreviewReqs.clear();
+          previewInFlight.clear();
+          lastStoreSlices = null;
           clearActivityViewGlobals(ownedGlobals);
           cleanupActivityViewDom();
         });

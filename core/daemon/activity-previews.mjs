@@ -269,8 +269,11 @@ export function createActivityPreviewReader({ getDatabaseSync, maxCacheSize = 12
   }
 
   function getActivityPreviews(cascadeIds, conversationsDir, { maxBatch = 40, maxChars = 220 } = {}) {
+    const sqliteAvailable = Boolean(typeof getDatabaseSync === 'function' && getDatabaseSync());
     const previews = {};
-    if (!Array.isArray(cascadeIds) || !conversationsDir) return { ok: true, previews };
+    if (!sqliteAvailable || !Array.isArray(cascadeIds) || !conversationsDir) {
+      return { ok: true, sqliteAvailable, previews };
+    }
     const seen = new Set();
     const cap = Math.min(Math.max(1, Number(maxBatch) || 40), 80);
     for (let i = 0; i < cascadeIds.length && seen.size < cap; i++) {
@@ -286,7 +289,7 @@ export function createActivityPreviewReader({ getDatabaseSync, maxCacheSize = 12
         };
       }
     }
-    return { ok: true, previews };
+    return { ok: true, sqliteAvailable: true, previews };
   }
 
   return {

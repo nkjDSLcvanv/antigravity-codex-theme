@@ -9,12 +9,12 @@
       "bytes": 5544
     },
     "daemon/activity-previews.mjs": {
-      "sha256": "d0f062e2acc8d560319b0ccac50bc84d09fa9dfb02b363152071e344f90e7fd0",
-      "bytes": 10326
+      "sha256": "f05aed969209418b42c72b8e8ddebb9006b4376f3e358192df613719a1285e30",
+      "bytes": 10497
     },
     "daemon/cdp-bridge.mjs": {
-      "sha256": "bcc7df2490af433159b80553f2d70141ce5d2b1f5aebbf3287b0b2491108ffc0",
-      "bytes": 62102
+      "sha256": "b0cacbb163e84d771646ce523ce4a8f7012de02338bc44d100f588d5704587af",
+      "bytes": 62383
     },
     "daemon/cdp-relaunch.mjs": {
       "sha256": "a26fbdc61ea7ec95871e1d7ce1b25b78c3ecfcdbcc677cadbd3d59108897d8e3",
@@ -109,8 +109,8 @@
       "bytes": 59337
     },
     "runtime/65-activity-view.js": {
-      "sha256": "e9a6716c0d12f92687de6cb6f61463b9aab2a2886b2d5858b3f05634aa5634e0",
-      "bytes": 85320
+      "sha256": "4654aff4553c24778f11cd01e037173d92c4ae8b95862ff2705641d5a23f0cf5",
+      "bytes": 94647
     },
     "runtime/70-prompt-suggestions.js": {
       "sha256": "3c79b0f052fb910e48032839b136f50921e433cc334573dba0000ac6eee5e75e",
