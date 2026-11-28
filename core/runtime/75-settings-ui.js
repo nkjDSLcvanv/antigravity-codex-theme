@@ -217,6 +217,7 @@
 
       const uiState = {
         config: {
+          preset: bootUserCfg.preset || boot.preset || 'codex-pure-white',
           telemetryLayout: bootUserCfg.telemetryLayout || boot.telemetryLayout || 'compact',
           telemetryCacheMode: bootUserCfg.telemetryCacheMode || boot.telemetryCacheMode || 'session',
           quotaStyle: bootUserCfg.quotaStyle || boot.quotaStyle || 'segments',
@@ -264,6 +265,11 @@
             secCore: '核心模块',
             modTheme: 'Codex 昼夜主题',
             modThemeDesc: '浅色纯白与中性炭灰深色配色，随 IDE 外观自动切换',
+            presetLbl: '主题风格',
+            presetDesc: '浅/深色跟随系统自动切换；「炭灰」仅作用于深色模式',
+            presetPureWhite: '纯白',
+            presetMorandi: '莫兰迪',
+            presetDark: '炭灰',
             modI18n: '中文界面汉化',
             modI18nDesc: '内置 2,000+ 界面与原生右键菜单词条，原地更新不影响交互，关闭即恢复英文',
             modMetrics: '实时会话状态与用量统计',
@@ -373,6 +379,11 @@
           secCore: 'Core Modules',
           modTheme: 'Codex Light & Dark Theme',
           modThemeDesc: 'Pure white light and charcoal dark palettes that follow IDE appearance automatically',
+          presetLbl: 'Theme Style',
+          presetDesc: 'Light/dark follows the system automatically; "Charcoal" applies to dark mode only',
+          presetPureWhite: 'Pure White',
+          presetMorandi: 'Morandi',
+          presetDark: 'Charcoal',
           modI18n: 'Chinese UI Localization',
           modI18nDesc: '2,000+ built-in UI & native context menu entries applied in place; disable to restore English immediately',
           modMetrics: 'Live Session Status & Telemetry',
@@ -536,6 +547,7 @@
         if (!res || !res.ok) return;
         if (res.config) {
           uiState.config = {
+            preset: res.config.preset || uiState.config.preset,
             telemetryLayout: res.config.telemetryLayout || uiState.config.telemetryLayout,
             telemetryCacheMode: res.config.telemetryCacheMode || uiState.config.telemetryCacheMode,
             quotaStyle: res.config.quotaStyle || uiState.config.quotaStyle,
@@ -693,6 +705,16 @@
           }
         }
         if (patch.telemetryLayout) uiState.config.telemetryLayout = patch.telemetryLayout;
+        if (patch.preset) {
+          uiState.config.preset = patch.preset;
+          try {
+            const h = document.documentElement;
+            const isDark = h.getAttribute('data-ag-theme-mode') === 'dark' || Boolean(document.body && document.body.classList.contains('dark'));
+            const useM = /morandi/i.test(String(patch.preset));
+            const tp = isDark ? (useM ? 'codex-morandi-dark' : 'codex-dark') : (useM ? 'codex-morandi' : 'codex-pure-white');
+            h.setAttribute('data-ag-preset', tp);
+          } catch {}
+        }
         if (patch.telemetryCacheMode) uiState.config.telemetryCacheMode = patch.telemetryCacheMode;
         if (patch.quotaStyle) {
           uiState.config.quotaStyle = patch.quotaStyle;
@@ -1809,6 +1831,33 @@
           '" ' +
           (mods.theme !== false ? 'checked' : '') +
           ' />' +
+          '</div></div>' +
+          // Theme style preset: Pure White / Morandi 陶土 / Charcoal
+          '<div class="ag-s-row"><div class="ag-s-row-main">' +
+          '<div class="ag-s-row-info"><div class="ag-s-row-label">' +
+          escHtml(s.presetLbl) +
+          '</div><div class="ag-s-row-desc">' +
+          escHtml(s.presetDesc) +
+          '</div></div>' +
+          '<div class="ag-s-seg" role="group" aria-label="' +
+          escHtml(s.presetLbl) +
+          '">' +
+          '<button type="button" class="ag-s-seg-btn" data-seg="preset" data-val="codex-pure-white" aria-pressed="' +
+          (cfg.preset !== 'codex-morandi' && cfg.preset !== 'codex-dark' ? 'true' : 'false') +
+          '">' +
+          escHtml(s.presetPureWhite) +
+          '</button>' +
+          '<button type="button" class="ag-s-seg-btn" data-seg="preset" data-val="codex-morandi" aria-pressed="' +
+          (cfg.preset === 'codex-morandi' ? 'true' : 'false') +
+          '">' +
+          escHtml(s.presetMorandi) +
+          '</button>' +
+          '<button type="button" class="ag-s-seg-btn" data-seg="preset" data-val="codex-dark" aria-pressed="' +
+          (cfg.preset === 'codex-dark' ? 'true' : 'false') +
+          '">' +
+          escHtml(s.presetDark) +
+          '</button>' +
+          '</div>' +
           '</div></div>' +
           '<div class="ag-s-row"><div class="ag-s-row-main">' +
           '<div class="ag-s-row-info"><label class="ag-s-row-label" for="ag-s-sw-i18n">' +

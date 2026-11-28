@@ -165,6 +165,7 @@ const EDITABLE_MODULE_KEYS = new Set([
 ]);
 const VALID_QUOTA_STYLES = new Set(['segments', 'bar', 'rings', 'gauge', 'dots', 'compact']);
 const VALID_QUOTA_OTHER_STYLES = new Set(['lines', 'text', 'segments', 'rings', 'rows', 'hidden']);
+const VALID_PRESETS = new Set(['codex-pure-white', 'codex-dark', 'codex-morandi']);
 const VALID_FONT_MODES = new Set(['global', 'split']);
 const VALID_SSH_HOST_RE = /^[a-zA-Z0-9_@][a-zA-Z0-9._:@-]{0,127}$/;
 const VALID_SUGGEST_MODEL_RE = /^[a-zA-Z0-9._:/-]{2,80}$/;
@@ -216,6 +217,12 @@ export function sanitizeConfigPatch(currentCfg, patch) {
   }
   if (VALID_QUOTA_OTHER_STYLES.has(patch.quotaOtherStyle)) {
     base.quotaOtherStyle = patch.quotaOtherStyle;
+  }
+  if (patch.preset !== undefined) {
+    const p = String(patch.preset || '').trim();
+    if (VALID_PRESETS.has(p)) base.preset = p;
+    else if (p === 'onyx-dark') base.preset = 'codex-dark';
+    else if (p === 'morandi') base.preset = 'codex-morandi';
   }
   if (patch.fonts && typeof patch.fonts === 'object') {
     const prev = normalizeFontsConfig(base.fonts);

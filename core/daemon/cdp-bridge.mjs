@@ -953,6 +953,7 @@ export function createCdpManager({
                   version: cachedPatchVersion,
                   config: {
                     enabled: activeConfig.enabled,
+                    preset: activeConfig.preset,
                     telemetryLayout: activeConfig.telemetryLayout,
                     telemetryCacheMode: activeConfig.telemetryCacheMode,
                     quotaStyle: activeConfig.quotaStyle,
@@ -1027,6 +1028,7 @@ export function createCdpManager({
                   version: cachedPatchVersion,
                   config: {
                     enabled: activeConfig.enabled,
+                    preset: activeConfig.preset,
                     telemetryLayout: activeConfig.telemetryLayout,
                     telemetryCacheMode: activeConfig.telemetryCacheMode,
                     quotaStyle: activeConfig.quotaStyle,

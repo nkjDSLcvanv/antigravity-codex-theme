@@ -9,8 +9,8 @@
       "bytes": 5269
     },
     "daemon/cdp-bridge.mjs": {
-      "sha256": "d676b645490185238730f444248302eea7ae920a7e3ef3097843e4a6eb699beb",
-      "bytes": 52790
+      "sha256": "5c441b31365f5757deedbee490e1e41193f289b9ecb38d5ddb7c4b059eaa9030",
+      "bytes": 52888
     },
     "daemon/cdp-relaunch.mjs": {
       "sha256": "a26fbdc61ea7ec95871e1d7ce1b25b78c3ecfcdbcc677cadbd3d59108897d8e3",
@@ -21,8 +21,8 @@
       "bytes": 2123
     },
     "daemon/paths.mjs": {
-      "sha256": "29e26d177a05e10d01d0f07c47af6a7b20cafd8f78fb239bd8e8ad63096422ec",
-      "bytes": 25751
+      "sha256": "98481c86a13247e43633c8adc3e0737ed4d2bc1db5e6f0f5117fb43f3bb151a2",
+      "bytes": 26092
     },
     "daemon/prompt-suggest.mjs": {
       "sha256": "fe346ce102abb5d9a1ac76d68e8e7e054380ab2f042c7b3c2255a2c05be52407",
@@ -109,8 +109,8 @@
       "bytes": 13183
     },
     "runtime/75-settings-ui.js": {
-      "sha256": "f378c0aaf5f3c12cc6da7e74e88de35219cdded9f391ac65b58aa6dd26446afb",
-      "bytes": 115394
+      "sha256": "939abd3972792cae9834761e024da9194ab1b9253c6ac4709861bf9373b1857f",
+      "bytes": 117903
     },
     "runtime/90-tail.js": {
       "sha256": "958cf7de0f460f4dc3ab0fdd6e4efd1061682e226ef2bdf2f00ca98fc15401c0",
