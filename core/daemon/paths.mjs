@@ -15,7 +15,7 @@ export const CORE_DIR = path.join(ROOT_DIR, 'core');
 export const STYLES_DIR = path.join(CORE_DIR, 'styles');
 export const RUNTIME_DIR = path.join(CORE_DIR, 'runtime');
 export const USER_DIR = path.join(ROOT_DIR, 'user');
-export const BASE_VERSION = '1.4.3';
+export const BASE_VERSION = '1.4.4';
 export const DAEMON_BOOT_ID = `${process.pid}-${crypto.randomBytes(6).toString('hex')}`;
 
 export function parseDaemonCliArgs(argv = process.argv.slice(2)) {

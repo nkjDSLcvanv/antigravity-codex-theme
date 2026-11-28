@@ -12,7 +12,7 @@
   if (window.top !== window && !IS_SWARM_PLUGIN_FRAME) return;
   if (!boot || typeof boot !== 'object') return;
 
-  const PATCH_VERSION = boot.version || '1.4.3';
+  const PATCH_VERSION = boot.version || '1.4.4';
   const CORE_HASH = String(boot.coreHash || '');
   const DAEMON_BOOT_ID = String(boot.daemonBootId || '');
   const BUNDLE_BOOT_SEQ = (window.__ag_bundle_boot_seq = (Number(window.__ag_bundle_boot_seq) || 0) + 1);

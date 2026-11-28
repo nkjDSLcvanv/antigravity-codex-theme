@@ -20,7 +20,7 @@ function loadPureRuntimeHelpers() {
     part30 +
       '\n' +
       part40 +
-      '\nthis.__exports = { cleanModelLabel, normalizeModelMatchKey, isSupersededStepError, selectBestLoadingText, WAIT_DEFAULTS, fmtWaitDuration, isUserCancelError, escapeStatusHtml, computeStatusSnapshot };',
+      '\nthis.__exports = { cleanModelLabel, normalizeModelMatchKey, getSelectedModelLabel, isSupersededStepError, selectBestLoadingText, WAIT_DEFAULTS, fmtWaitDuration, isUserCancelError, escapeStatusHtml, computeStatusSnapshot };',
     ctx
   );
   return ctx.__exports;
@@ -29,6 +29,7 @@ function loadPureRuntimeHelpers() {
 const {
   cleanModelLabel,
   normalizeModelMatchKey,
+  getSelectedModelLabel,
   isSupersededStepError,
   selectBestLoadingText,
   fmtWaitDuration,
@@ -76,6 +77,41 @@ test('Part 30 helpers normalize model labels, detect superseded step errors, and
     selectBestLoadingText(['Thinking...', 'Model unavailable, retrying in 13s (attempt 6/9)']),
     'Model unavailable, retrying in 13s (attempt 6/9)'
   );
+});
+
+test('getSelectedModelLabel prefers Antigravity 2.36.0+ data-model-label and falls back cleanly on older builds', () => {
+  const mkScope = (el) => ({ querySelector: (sel) => (sel === '[data-testid="model-selector-trigger"]' ? el : null) });
+  const el236 = {
+    innerText: 'Gemini 4 Neon',
+    getAttribute(k) {
+      if (k === 'data-model-label') return 'Gemini 4 Neon Extra High';
+      if (k === 'aria-label') return '模型，当前：Gemini 4 Neon Extra High（适用于 /btw 及本轮之后发送的消息）';
+      return null;
+    }
+  };
+  assert.equal(getSelectedModelLabel(mkScope(el236)), 'Gemini 4 Neon Extra High');
+
+  // Empty/placeholder data-model-label falls back cleanly to orig/current aria-label
+  const elPlaceholder = {
+    innerText: 'Gemini 4 Carbon Medium',
+    getAttribute(k) {
+      if (k === 'data-model-label') return 'Select model';
+      if (k === 'data-ag-orig-aria-label') return 'Select model, current: Gemini 4 Carbon Medium. Applies to messages sent after this turn';
+      return null;
+    }
+  };
+  assert.equal(getSelectedModelLabel(mkScope(elPlaceholder)), 'Gemini 4 Carbon Medium');
+
+  // Legacy build without data-model-label uses aria-label / innerText
+  const elLegacy = {
+    innerText: 'Claude Sonnet 5.5',
+    getAttribute(k) {
+      if (k === 'aria-label') return 'Model, current: Claude Sonnet 5.5 Medium';
+      return null;
+    }
+  };
+  assert.equal(getSelectedModelLabel(mkScope(elLegacy)), 'Claude Sonnet 5.5 Medium');
+  assert.equal(getSelectedModelLabel(mkScope(null)), '');
 });
 
 test('Idle state stays steady blue even when fullyIdle is false after DONE turn', () => {

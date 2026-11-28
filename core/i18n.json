@@ -2100,5 +2100,18 @@
   "No one is on this thread yet.": "此话题中暂无成员。",
   "Retry loading earlier posts": "重试加载更早发言",
   "Right-click image to save, or open in a new tab.": "右键点击图片即可保存，或在新标签页中打开。",
-  "Message just sent": "消息已发送"
+  "Message just sent": "消息已发送",
+  "Applies to /btw and messages sent after this turn": "适用于 /btw 及本轮之后发送的消息",
+  "Applies to messages sent after this turn": "适用于本轮之后发送的消息",
+  "Hide from Sidebar": "从侧边栏隐藏",
+  "Reply in Thread": "在话题中回复",
+  "Let the agent open URLs, read web pages, and interact with browser content. This gives the agent access to important (and often critical) knowledge and methods of validation, but any browser integration does increase exposure to external malicious parties for security exploits.": "允许智能体打开网址、阅读网页并与浏览器内容交互。这能让智能体获取关键知识与验证手段，但任何浏览器集成都会增加暴露于外部恶意安全攻击的风险。",
+  "Default Cog repository": "默认 Cog 仓库",
+  "Git-on-Borg repository used when creating a new Cog workspace from your initial prompt (e.g., chromium/chromium/src or android/platform/superproject).": "从初始提示词创建新的 Cog 工作区时使用的 Git-on-Borg 仓库（例如 chromium/chromium/src 或 android/platform/superproject）。",
+  "e.g., chromium/chromium/src": "例如：chromium/chromium/src",
+  "Default Cog branch / ref": "默认 Cog 分支 / 引用",
+  "Optional branch or ref used when creating a new Cog workspace (defaults to main if unset).": "创建新的 Cog 工作区时使用的可选分支或引用（未设置时默认为 main）。",
+  "e.g., main or refs/heads/main": "例如：main 或 refs/heads/main",
+  "Give each Best of N fork a full clone of your workspace, including its local commit history. Choosing a winner then gives your workspace that fork's state, so the commits it made are kept. Forks take longer to create than the default CitC clone.": "为每个多方案择优 (Best of N) 分支提供工作区的完整克隆（含本地提交历史）。选定胜出方案后，工作区将直接采用该分支状态并保留其提交。相比默认 CitC 克隆，创建分支耗时更长。",
+  "Give each Best of N fork its own clone of your Git repository instead of a copy-on-write overlay. Each fork is then a real repository, so commits it makes are kept when you choose it as the winner. Forks take longer to create, and the wait grows with the size of your repository.": "为每个多方案择优 (Best of N) 分支创建独立的 Git 仓库克隆，而非写时复制叠层。每个分支都是真实仓库，选定为胜出方案后其提交将被保留。分支创建耗时更长，且等待时间会随仓库体积增大而增加。"
 }

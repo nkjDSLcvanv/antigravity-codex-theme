@@ -66,8 +66,16 @@
     try {
       const el =
         (scopeEl && scopeEl.querySelector ? scopeEl.querySelector('[data-testid="model-selector-trigger"]') : null) ||
-        document.querySelector('[data-testid="model-selector-trigger"]');
+        (typeof document !== 'undefined' && document.querySelector
+          ? document.querySelector('[data-testid="model-selector-trigger"]')
+          : null);
       if (!el) return '';
+      // Antigravity 2.36.0+ exposes the raw untranslated model label via data-model-label
+      const dataModelLabel = typeof el.getAttribute === 'function' ? el.getAttribute('data-model-label') : '';
+      if (dataModelLabel) {
+        const cleaned = cleanModelLabel(dataModelLabel);
+        if (cleaned) return cleaned;
+      }
       const fk = Object.keys(el).find(
         (k) => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$')
       );

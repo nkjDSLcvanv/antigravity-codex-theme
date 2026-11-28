@@ -84,6 +84,43 @@ test('parseAgyModelsOutput strips ANSI/spinner frames, groups by base model, sor
   assert.deepEqual(parseAgyModelsOutput(''), []);
 });
 
+test('parseAgyModelsOutput parses Antigravity 2.36.0+ single-tab columns, filters all Orchestrator variants, and ignores banner prose', () => {
+  const raw236 = [
+    'Fetching available models...',
+    'gemini-4-neon-high\tGemini 4 Neon (High)',
+    'gemini-4-neon-xhigh\tGemini 4 Neon (XHigh)',
+    'gemini-4-neon-medium\tGemini 4 Neon (Medium)',
+    'gemini-4-neon-low\tGemini 4 Neon (Low)',
+    'gemini-pro-orchestrator-neon\tOrchestrator (Neon)',
+    'gemini-pro-orchestrator\tOrchestrator (Carbon)',
+    'gemini-pro-orchestrator-argon\tOrchestrator (Argon)',
+    'gemini-3.8-flash-high\tGemini 3.8 Flash (High)',
+    'gemini-3.8-flash-medium\tGemini 3.8 Flash (Medium)',
+    'gemini-3.8-flash-low\tGemini 3.8 Flash (Low)',
+    'gpt-oss-120b-medium\tGPT-OSS 120B (Medium)'
+  ].join('\n');
+
+  const families = parseAgyModelsOutput(raw236);
+  assert.equal(families.length, 3, 'All three Orchestrator variants and banner line must be excluded');
+  assert.equal(families[0].name, 'Gemini 3.8 Flash');
+  assert.equal(families[0].recommended, true);
+  assert.deepEqual(
+    families[0].efforts.map((e) => e.id),
+    ['gemini-3.8-flash-low', 'gemini-3.8-flash-medium', 'gemini-3.8-flash-high']
+  );
+
+  const neon = families.find((f) => f.name === 'Gemini 4 Neon');
+  assert.ok(neon);
+  assert.deepEqual(
+    neon.efforts.map((e) => e.label),
+    ['Low', 'Medium', 'High', 'Extra High']
+  );
+
+  const oss = families.find((f) => f.key === 'gpt-oss-120b');
+  assert.ok(oss);
+  assert.equal(oss.singleId, 'gpt-oss-120b-medium');
+});
+
 test('deriveEffortFromModelId maps model ID suffixes to valid agy --effort flags', () => {
   assert.equal(deriveEffortFromModelId('gemini-3.8-flash-low'), 'low');
   assert.equal(deriveEffortFromModelId('gemini-4-neon-medium'), 'medium');

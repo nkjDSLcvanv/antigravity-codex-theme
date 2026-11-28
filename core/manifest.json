@@ -1,6 +1,6 @@
 {
   "name": "antigravity-codex-theme",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "minNodeVersion": "22.13.0",
   "fullMetricsNodeVersion": "22.13.0",
   "files": {
@@ -25,12 +25,12 @@
       "bytes": 2123
     },
     "daemon/paths.mjs": {
-      "sha256": "8ce08fb669956648b52018ad17caa9cb1c33ebc0f96fe46b8f826d23617f2a66",
+      "sha256": "77c0dfc85fc861db5221bbe67af77a12bc03eeaf828762300b921d17858b0ec7",
       "bytes": 28463
     },
     "daemon/prompt-suggest.mjs": {
-      "sha256": "0811aad02c949831685cea68730ce1f1dba9c6db052cd37bead0da9c6df8c763",
-      "bytes": 28335
+      "sha256": "4e82c931b09260814f53fda8a101afc5304122698a1ebf025b2361ca4827ea9b",
+      "bytes": 28451
     },
     "daemon/protobuf.mjs": {
       "sha256": "b8424744ae867c6265c649d731572e9334e8d053840f0c99a94167a29019baa1",
@@ -53,11 +53,11 @@
       "bytes": 15871
     },
     "i18n.json": {
-      "sha256": "43b93c32db8379d96b9912cb5d36bb71fbbc6ddd55457cedf83eeaf20774fac5",
-      "bytes": 126757
+      "sha256": "f02241a263ab0940e9373db3688bff2945672babb03e2f360343d689d480949a",
+      "bytes": 129327
     },
     "installer/cdp-launch.mjs": {
-      "sha256": "994c463b8baed173b876ce3d8f3c8b452db8f024acfac4e111422735ce730e24",
+      "sha256": "bcc840f0eacef6001690c3cedd0c9e1f89daacdd6fc6caf64f422a2b19836e58",
       "bytes": 28826
     },
     "installer/env.mjs": {
@@ -77,7 +77,7 @@
       "bytes": 21703
     },
     "runtime/00-head.js": {
-      "sha256": "25ca7bfdee6583e270d4a63154b89332f1b70e1cf8f83ad3890967f06d969165",
+      "sha256": "3737b3f473910569c73962f99c9a739e19c5776bdc911609bebc478e0d51efbb",
       "bytes": 20638
     },
     "runtime/10-guards.js": {
@@ -89,8 +89,8 @@
       "bytes": 6481
     },
     "runtime/30-antigravity-probe.js": {
-      "sha256": "424f6a42c645d470edd70e9d8e490bcc40885d359d74631ce340cc9c6193516d",
-      "bytes": 9225
+      "sha256": "4d35a6b6ed4400adf69ab9cfabdb5ca774c82101eab73b714c6dbbb1e6afad34",
+      "bytes": 9646
     },
     "runtime/40-status-machine.js": {
       "sha256": "a7e942771d6cc41982e44f5b9849dbd99b0f4d5153ede54710f5beece4fb12d6",
@@ -105,8 +105,8 @@
       "bytes": 47060
     },
     "runtime/60-i18n-engine.js": {
-      "sha256": "79697370e6c44b9d94d3b3293ccd5737d7b3d44d636ac5b332eca9a4b98f1b93",
-      "bytes": 59118
+      "sha256": "7d187cf28204eebaa9f06dd6b4d4e37af5457ca5205d49668d322271a84dfb1f",
+      "bytes": 59337
     },
     "runtime/65-activity-view.js": {
       "sha256": "e9a6716c0d12f92687de6cb6f61463b9aab2a2886b2d5858b3f05634aa5634e0",

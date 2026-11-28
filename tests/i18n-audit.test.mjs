@@ -690,3 +690,90 @@ test('startup performs a single synchronous scan when document.body exists and d
     hDeferred.cleanup();
   }
 });
+
+test('60-i18n-engine translates Antigravity 2.36.0 UI strings, native menu items, and period-separated model aria-label notes', () => {
+  const uiCases = [
+    ['Hide from Sidebar', '从侧边栏隐藏'],
+    ['Reply in Thread', '在话题中回复'],
+    ['Applies to /btw and messages sent after this turn', '适用于 /btw 及本轮之后发送的消息'],
+    ['Applies to messages sent after this turn', '适用于本轮之后发送的消息'],
+    ['Default Cog repository', '默认 Cog 仓库'],
+    ['Default Cog branch / ref', '默认 Cog 分支 / 引用'],
+    ['e.g., chromium/chromium/src', '例如：chromium/chromium/src'],
+    ['e.g., main or refs/heads/main', '例如：main 或 refs/heads/main'],
+    ['Download location', '下载位置'],
+    ['Context and quota indicator', '上下文与配额指示器'],
+    ['Queued messages', '排队消息'],
+    ['Conversation steps', '对话执行步骤'],
+    [
+      'Let the agent open URLs, read web pages, and interact with browser content. This gives the agent access to important (and often critical) knowledge and methods of validation, but any browser integration does increase exposure to external malicious parties for security exploits.',
+      '允许智能体打开网址、阅读网页并与浏览器内容交互。这能让智能体获取关键知识与验证手段，但任何浏览器集成都会增加暴露于外部恶意安全攻击的风险。'
+    ],
+    [
+      'Give each Best of N fork a full clone of your workspace, including its local commit history. Choosing a winner then gives your workspace that fork\'s state, so the commits it made are kept. Forks take longer to create than the default CitC clone.',
+      '为每个多方案择优 (Best of N) 分支提供工作区的完整克隆（含本地提交历史）。选定胜出方案后，工作区将直接采用该分支状态并保留其提交。相比默认 CitC 克隆，创建分支耗时更长。'
+    ],
+    [
+      'Give each Best of N fork its own clone of your Git repository instead of a copy-on-write overlay. Each fork is then a real repository, so commits it makes are kept when you choose it as the winner. Forks take longer to create, and the wait grows with the size of your repository.',
+      '为每个多方案择优 (Best of N) 分支创建独立的 Git 仓库克隆，而非写时复制叠层。每个分支都是真实仓库，选定为胜出方案后其提交将被保留。分支创建耗时更长，且等待时间会随仓库体积增大而增加。'
+    ]
+  ];
+
+  const modelBtnBtw = mkEl({
+    tagName: 'BUTTON',
+    attrs: {
+      'data-testid': 'model-selector-trigger',
+      'data-model-label': 'Gemini 4 Neon Extra High',
+      'aria-label': 'Select model, current: Gemini 4 Neon Extra High. Applies to /btw and messages sent after this turn'
+    }
+  });
+  const modelBtnAfter = mkEl({
+    tagName: 'BUTTON',
+    attrs: {
+      'data-testid': 'model-selector-trigger',
+      'data-model-label': 'Gemini 3.8 Flash',
+      'aria-label': 'Select model, current: Gemini 3.8 Flash. Applies to messages sent after this turn.'
+    }
+  });
+  const modelBtnLocked = mkEl({
+    tagName: 'BUTTON',
+    attrs: {
+      'data-testid': 'model-selector-trigger',
+      'data-model-label': 'Gemini 4 Carbon Medium',
+      'aria-label': 'Model: Gemini 4 Carbon Medium. Model cannot be changed while the agent is running'
+    }
+  });
+
+  const nodes = uiCases.map(([input]) => ({ nodeType: 3, nodeValue: input, parentElement: mkEl() }));
+  const attrEls = [modelBtnBtw, modelBtnAfter, modelBtnLocked];
+  const h = runI18nHarness({ nodes, attrEls });
+  try {
+    for (let i = 0; i < uiCases.length; i++) {
+      assert.equal(nodes[i].nodeValue, uiCases[i][1], `2.36.0 UI translation mismatch for ${uiCases[i][0]}`);
+    }
+    assert.equal(
+      modelBtnBtw.getAttribute('aria-label'),
+      '模型，当前：Gemini 4 Neon Extra High（适用于 /btw 及本轮之后发送的消息）'
+    );
+    assert.equal(
+      modelBtnAfter.getAttribute('aria-label'),
+      '模型，当前：Gemini 3.8 Flash（适用于本轮之后发送的消息）'
+    );
+    assert.equal(
+      modelBtnLocked.getAttribute('aria-label'),
+      '模型，当前：Gemini 4 Carbon Medium（智能体运行期间无法切换模型）'
+    );
+
+    const menuRes = vm.runInContext(
+      `[
+        { id: 'hide-sidebar', label: 'Hide from Sidebar', accelerator: '', checked: false, disabled: false },
+        { id: 'reply-thread', label: 'Reply in Thread', accelerator: '', checked: false, disabled: false }
+      ].map((x) => Object.assign({}, x))`,
+      h.sandbox
+    );
+    assert.equal(menuRes[0].label, '从侧边栏隐藏');
+    assert.equal(menuRes[1].label, '在话题中回复');
+  } finally {
+    h.cleanup();
+  }
+});

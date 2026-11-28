@@ -14,21 +14,21 @@
 </p>
 
 <p>
-  不修改安装包，通过本地 CDP 实时注入，覆盖 36 个独立模块与 124 项单元测试。<br>
+  不修改安装包，通过本地 CDP 实时注入，覆盖 36 个独立模块与 127 项单元测试。<br>
   支持 <code>--only</code> 按需安装、设置面板内一键检查更新与 <code>user/</code> 个人配置热重载。
 </p>
 
 <p>
   <a href="https://github.com/nkjDSLcvanv/antigravity-codex-theme/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/nkjDSLcvanv/antigravity-codex-theme/ci.yml?branch=main&label=CI&labelColor=363636&logo=githubactions&logoColor=white" alt="CI"></a>
-  <img src="https://img.shields.io/static/v1?label=Antigravity&message=2.30.x%20~%202.35.2%2B&color=2B7FFF&labelColor=363636" alt="Antigravity 2.30.x ~ 2.35.2+">
+  <img src="https://img.shields.io/static/v1?label=Antigravity&message=2.30.x%20~%202.36.0%2B&color=2B7FFF&labelColor=363636" alt="Antigravity 2.30.x ~ 2.36.0+">
   <img src="https://img.shields.io/static/v1?label=Node.js&message=%3E%3D%2022.13.0&color=339933&labelColor=363636&logo=nodedotjs&logoColor=white" alt="Node.js >= 22.13.0">
   <img src="https://img.shields.io/static/v1?label=platform&message=macOS%20%C2%B7%20Windows%20%C2%B7%20Linux&color=4B5563&labelColor=363636" alt="macOS · Windows · Linux">
-  <img src="https://img.shields.io/static/v1?label=version&message=v1.4.3&color=2B7FFF&labelColor=363636" alt="version v1.4.3">
+  <img src="https://img.shields.io/static/v1?label=version&message=v1.4.4&color=2B7FFF&labelColor=363636" alt="version v1.4.4">
   <a href="LICENSE"><img src="https://img.shields.io/static/v1?label=license&message=MIT&color=10B981&labelColor=363636" alt="MIT License"></a>
 </p>
 
 <p>
-  <a href="#命令行安装"><img src="https://img.shields.io/static/v1?label=CLI%20INSTALL&message=v1.4.3&color=2B7FFF&style=for-the-badge&labelColor=181818&logo=gnubash&logoColor=white" alt="CLI Install"></a>
+  <a href="#命令行安装"><img src="https://img.shields.io/static/v1?label=CLI%20INSTALL&message=v1.4.4&color=2B7FFF&style=for-the-badge&labelColor=181818&logo=gnubash&logoColor=white" alt="CLI Install"></a>
   <a href="#ai-一键安装"><img src="https://img.shields.io/static/v1?label=AI%20ONE-CLICK&message=SKILL.md&color=0D9488&style=for-the-badge&labelColor=181818&logo=googlegemini&logoColor=white" alt="AI One-Click Install"></a>
   <a href="#按需安装"><img src="https://img.shields.io/static/v1?label=SELECTIVE%20INSTALL&message=--only&color=6366F1&style=for-the-badge&labelColor=181818&logo=codesandbox&logoColor=white" alt="Selective Install"></a>
 </p>
@@ -50,7 +50,7 @@ https://github.com/user-attachments/assets/e27c7621-b605-4fdf-9bc3-4fc12da85484
 
 ## 快速安装
 
-> **前置要求**：**Node.js >= 22.13.0** 与 Google Antigravity（`2.30.x` ~ `2.35.2+`，已实机验证 **macOS / Windows / Linux**）。部署至 `~/.gemini/antigravity/codex-theme`，**不修改安装包**；若安装前应用已在无调试端口状态下运行，重启一次或执行 `node install.mjs relaunch` 即可生效。
+> **前置要求**：**Node.js >= 22.13.0** 与 Google Antigravity（`2.30.x` ~ `2.36.0+`，已实机验证 **macOS / Windows / Linux**）。部署至 `~/.gemini/antigravity/codex-theme`，**不修改安装包**；若安装前应用已在无调试端口状态下运行，重启一次或执行 `node install.mjs relaunch` 即可生效。
 
 ### 命令行安装
 
@@ -98,7 +98,7 @@ node install.mjs install --only i18n,metrics
 
 也可通过 `node install.mjs sparse-paths --only i18n` 输出最小单模块文件清单，配合 `git sparse-checkout set --no-cone ...` 与 `--minimal` 实现极简拉取。
 
-**跨平台与 Antigravity `2.33.0+` 说明**：已覆盖 Antigravity `2.31.0` ~ `2.35.2`（macOS `LaunchAgent`、Windows `schtasks`/快捷方式、Linux `systemd --user`/`.desktop`）。`2.33.0+` 默认关闭 `DevToolsActivePort`，需 `--remote-debugging-port=0` 启动——macOS 默认单图标模式仅在冷启动前 `12s`（自动更新 `25s`）内接力补参，不中断运行中的会话；Windows / Linux 自动写入快捷方式或 `.desktop` 并兼容 `~/.antigravity/argv.json`。
+**跨平台与 Antigravity `2.33.0+` 说明**：已覆盖 Antigravity `2.31.0` ~ `2.36.0`（macOS `LaunchAgent`、Windows `schtasks`/快捷方式、Linux `systemd --user`/`.desktop`）。`2.33.0+` 默认关闭 `DevToolsActivePort`，需 `--remote-debugging-port=0` 启动——macOS 默认单图标模式仅在冷启动前 `12s`（自动更新 `25s`）内接力补参，不中断运行中的会话；Windows / Linux 自动写入快捷方式或 `.desktop` 并兼容 `~/.antigravity/argv.json`。
 
 </details>
 
@@ -113,7 +113,7 @@ node install.mjs install --only i18n,metrics
 | `node --disable-warning=ExperimentalWarning install.mjs doctor` | 检查 Node 版本、CDP 状态、`core/manifest.json` 哈希及页面挂载状态 |
 | `node --disable-warning=ExperimentalWarning install.mjs verify [--safe-mode]` | 单次注入并校验；`--safe-mode` 跳过 `user/` 自定义脚本以便排障 |
 | `node install.mjs rollback` / `uninstall` | 回滚至上一份 `core/` 备份 / 停止服务并还原英文界面与原生样式 |
-| `npm run check` / `npm test` | 校验全部 `.mjs` 与拼接后的前端脚本语法，运行 124 项 `node:test` 单元测试 |
+| `npm run check` / `npm test` | 校验全部 `.mjs` 与拼接后的前端脚本语法，运行 127 项 `node:test` 单元测试 |
 
 </details>
 
@@ -193,7 +193,7 @@ node install.mjs install --only i18n,metrics
 
 ### 6. 中文界面汉化、昼夜主题与实用修复
 
-- **中文界面、Swarm 看板与原生右键菜单汉化**：内置 `2,100+` 条统一术语词条（覆盖 Antigravity `2.30.x` ~ `2.35.2+`、额度耗尽/AI 点数动态提示、**Swarm 看板即时附着与汉化**及 **Electron 原生右键多级菜单**，保留英文模型名与项目/分组/分支名防误翻），`WeakMap` 原地更新，支持 [user/i18n.override.json](user/i18n.override.json) 覆写或一键切回英文。
+- **中文界面、Swarm 看板与原生右键菜单汉化**：内置 `2,100+` 条统一术语词条（覆盖 Antigravity `2.30.x` ~ `2.36.0+`、额度耗尽/AI 点数动态提示、**Swarm 看板即时附着与汉化**及 **Electron 原生右键多级菜单**，保留英文模型名与项目/分组/分支名防误翻），`WeakMap` 原地更新，支持 [user/i18n.override.json](user/i18n.override.json) 覆写或一键切回英文。
 - **昼夜主题与实用修复**：纯白浅色（`#FFFFFF` / `#F9F9F9`）与中性炭灰深色（`#181818` / `#232323`）搭配同心圆角悬浮输入框；内置设置弹窗路由死锁修复、`Cmd/Ctrl + -/=/0` 缩放快捷键与 `2.33.0+` 单图标冷启动接力。
 
 ## 自定义与卸载
@@ -219,7 +219,7 @@ node install.mjs install --only i18n,metrics
 </details>
 
 <details>
-<summary>展开：源码模块结构（core/ 36 模块与 124 项单元测试）与本地构建</summary>
+<summary>展开：源码模块结构（core/ 36 模块与 127 项单元测试）与本地构建</summary>
 
 | 定制方向 | 对应文件 |
 | :--- | :--- |
@@ -240,7 +240,7 @@ node install.mjs build-manifest && npm run check && npm test && node install.mjs
 antigravity-codex-theme/
 ├── assets/         # README 展示图
 ├── core/           # daemon/ · runtime/ · styles/ · installer/ · daemon.mjs · shared.mjs · i18n.json · manifest.json
-├── tests/          # 124 项 node:test 单元测试
+├── tests/          # 127 项 node:test 单元测试
 ├── user/           # 个人配置与热重载目录
 ├── install.mjs     # 安装、更新、重启与运维 CLI
 ├── SKILL.md        # AI Agent 操作指南
@@ -270,4 +270,4 @@ antigravity-codex-theme/
 
 ## English Overview
 
-`antigravity-codex-theme` brings Codex light & dark themes, custom local fonts (with pure-Node SFNT auto-discovery for global or split UI / Chat / Code scopes), Ink 5h/7d model quota display (independent toggles for panel footer and sidebar block, 6×6 mix-and-match styles, instant live refresh on open/focus/reset, passive native-usage sync & click-to-refresh), Chinese UI, Swarm Board & Electron native right-click context menu localization (`2,100+` in-place `WeakMap` entries with project/branch/group name guards and instant CDP target discovery), an embedded native **Settings → Codex Theme** panel with live self-updater, and multi-pane live session telemetry (dynamic width-adaptive wrapping for both `compact` and `detailed` modes, concurrent split-screen multi-conversation tracking, Side Question panes, opt-in read-only SSH Remote, and opt-in session-isolated Ghost Text prompt suggestions) to Google Antigravity (`2.30.x` – `2.35.2+`) without touching the application bundle. Built as 36 modules with 124 `node:test` unit tests (Node.js `>= 22.13.0`, macOS / Windows / Linux, MIT License).
+`antigravity-codex-theme` brings Codex light & dark themes, custom local fonts (with pure-Node SFNT auto-discovery for global or split UI / Chat / Code scopes), Ink 5h/7d model quota display (independent toggles for panel footer and sidebar block, 6×6 mix-and-match styles, instant live refresh on open/focus/reset, passive native-usage sync & click-to-refresh), Chinese UI, Swarm Board & Electron native right-click context menu localization (`2,100+` in-place `WeakMap` entries with project/branch/group name guards and instant CDP target discovery), an embedded native **Settings → Codex Theme** panel with live self-updater, and multi-pane live session telemetry (dynamic width-adaptive wrapping for both `compact` and `detailed` modes, concurrent split-screen multi-conversation tracking, Side Question panes, opt-in read-only SSH Remote, and opt-in session-isolated Ghost Text prompt suggestions) to Google Antigravity (`2.30.x` – `2.36.0+`) without touching the application bundle. Built as 36 modules with 127 `node:test` unit tests (Node.js `>= 22.13.0`, macOS / Windows / Linux, MIT License).

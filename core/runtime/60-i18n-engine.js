@@ -1060,12 +1060,13 @@
       if (mModel) {
         let mName = mModel[1].trim();
         let noteZh = '';
-        const commaIdx = mName.indexOf(', ');
-        if (commaIdx > 0) {
-          const maybeNote = mName.slice(commaIdx + 2).trim();
-          const noteHit = lookupRawDict(maybeNote);
+        const sepMatch = mName.match(/(?:,\s+|\.\s+)/);
+        if (sepMatch && sepMatch.index > 0) {
+          const maybeNote = mName.slice(sepMatch.index + sepMatch[0].length).trim();
+          const noteStem = maybeNote.endsWith('.') ? maybeNote.slice(0, -1).trim() : maybeNote;
+          const noteHit = lookupRawDict(maybeNote) || (noteStem !== maybeNote ? lookupRawDict(noteStem) : undefined);
           if (typeof noteHit === 'string' && noteHit) {
-            mName = mName.slice(0, commaIdx).trim();
+            mName = mName.slice(0, sepMatch.index).trim();
             noteZh = '（' + noteHit + '）';
           }
         }

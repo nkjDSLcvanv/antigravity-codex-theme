@@ -157,7 +157,8 @@ export function parseAgyModelsOutput(rawOutput, { includeOrchestrator = false } 
   const seenIds = new Set();
 
   for (const line of cleaned) {
-    const m = line.match(/^([a-zA-Z0-9][a-zA-Z0-9._:/-]{2,80})\s{2,}(.+)$/);
+    // Antigravity <=2.35 uses multi-space padding; 2.36.0+ separates columns with a single tab (\t).
+    const m = line.match(/^([a-zA-Z0-9][a-zA-Z0-9._:/-]{2,80})(?:[ \t]*\t+|\s{2,})(.+)$/);
     if (!m) continue;
     const id = m[1].trim();
     const displayName = m[2].trim();
